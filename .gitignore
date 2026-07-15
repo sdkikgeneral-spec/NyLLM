@@ -1,0 +1,40 @@
+# --- Build artifacts (Meson) ---
+build/
+builddir/
+subprojects/*/            # wrap-downloaded subproject sources
+!subprojects/*.wrap
+
+# --- PoC runtime-generated data (do NOT commit) ---
+poc/cache_store/          # 実行時に生成されるキャッシュエントリ
+poc/keys/                 # ノード秘密鍵。絶対にコミットしない
+cache_store/
+keys/
+
+# --- Python (python_prototype) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# --- C/C++ intermediates ---
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.pdb
+*.ilk
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Claude Code local settings (machine-specific) ---
+.claude/settings.local.json

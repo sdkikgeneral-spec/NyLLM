@@ -1,0 +1,10 @@
+# Winny型 Semantic Cache PoC 依存パッケージ
+# --- 必須(コア) ---
+numpy>=1.26
+cryptography>=42.0
+
+# --- 推奨(実Embedding。入らない環境ではハッシュ埋め込みに自動フォールバック) ---
+sentence-transformers>=3.0
+
+# --- 任意(実LLM Agent。ANTHROPIC_API_KEY がある場合のみ使用) ---
+anthropic>=0.40
