@@ -114,12 +114,7 @@ The full design lives here. This README is only the entrance. (The design docume
 
 ## Contributing
 
-Since this is the design phase, discussion via Issues/Discussions is welcome first. In particular:
-
-- Embedding model selection and empirical measurement of the shared threshold τ
-- Initial construction of the predicate ontology (volatility classes) and multilingual support
-- Parameter design for local EigenTrust
-- Choice of DHT implementation (viability of reusing Kademlia-family designs)
+Since this is the design phase, discussion via Issues/Discussions is welcome first. Welcome themes, development environment, coding conventions, and the invariants to read before touching anything are all collected in the **[Contributing Guide](./CONTRIBUTING.en.md)**.
 
 > Before sending code, agreement to [CLA.md](./CLA.md) is required. This is what makes the future license migration (below) possible.
 
