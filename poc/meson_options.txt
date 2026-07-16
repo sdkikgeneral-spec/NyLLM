@@ -1,4 +1,0 @@
-option('use_sodium', type : 'boolean', value : false,
-       description : 'Use libsodium for Ed25519 signatures')
-option('use_onnx',   type : 'boolean', value : false,
-       description : 'Use ONNX Runtime for real embeddings')

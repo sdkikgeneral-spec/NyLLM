@@ -1,8 +1,5 @@
-# --- Build artifacts (Meson) ---
-build/
-builddir/
-subprojects/*/            # wrap-downloaded subproject sources
-!subprojects/*.wrap
+# --- Build artifacts (Cargo) ---
+target/
 
 # --- PoC runtime-generated data (do NOT commit) ---
 poc/cache_store/          # 実行時に生成されるキャッシュエントリ
@@ -16,18 +13,6 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
-
-# --- C/C++ intermediates ---
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.dylib
-*.a
-*.lib
-*.pdb
-*.ilk
 
 # --- Editor / OS ---
 .vscode/
