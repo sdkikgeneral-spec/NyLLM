@@ -2,7 +2,9 @@
 //
 //   質問 → Embedding → 意味検索
 //     ├ ヒット(類似度 >= しきい値) → キャッシュ回答
-//     └ ミス → Agent推論 → 揮発性タグ → 共有可否ゲート → 署名付き登録 → 回答
+//     └ ミス → Agent推論 → 判定パイプライン(Architecture §7)
+//               [L0語彙 → L2自己申告 → 案4トリプル分解 → §10.1揮発性確定]
+//               → 署名付き登録 → 回答
 //
 // 使い方:
 //   semantic_cache_poc            … キャッシュを初期化してデモ実行
@@ -10,7 +12,9 @@
 mod agent;
 mod cache;
 mod embedder;
+mod pipeline;
 mod signer;
+mod triples;
 mod volatility;
 
 // テストモジュールの配線。
@@ -23,12 +27,22 @@ mod tests
     mod common;
     #[path = "test_cache.rs"]
     mod test_cache;
+    #[path = "test_cache_facts.rs"]
+    mod test_cache_facts;
     #[path = "test_volatility.rs"]
     mod test_volatility;
+    #[path = "test_finalize_volatility.rs"]
+    mod test_finalize_volatility;
+    #[path = "test_triples.rs"]
+    mod test_triples;
+    #[path = "test_pipeline.rs"]
+    mod test_pipeline;
     #[path = "test_signer.rs"]
     mod test_signer;
     #[path = "bench_cache.rs"]
     mod bench_cache;
+    #[path = "bench_pipeline.rs"]
+    mod bench_pipeline;
 }
 
 use cache::{SemanticCache, LOCAL_THRESHOLD, SHARED_THRESHOLD};
@@ -87,6 +101,7 @@ fn main() {
         "Winnyとは何ですか?",             // 完全一致 → ヒット(sim=1.0)
         "Winnyって何?",                   // 言い換え → Mock埋め込みでは類似度を表示
         "P2Pの仕組みを教えてください",
+        "日本の首都はどこですか?",         // 案4所有格分解 → permanent型述語 → permanent
         "最新のClaudeのモデルは何ですか?", // volatile → 共有不可
         "おすすめのエディタはどれですか?", // 主観 → 共有不可
     ];
@@ -114,15 +129,58 @@ fn main() {
             agent.name()
         );
         let answer = agent.ask(q);
-        let vol = volatility::classify_volatility(q);
-        let dec = volatility::share_gate(q, &vol);
-        let e = cache.register_entry(q, &answer, &vol, dec.shareable, &dec.reason, agent.name());
+        // 判定パイプライン(Architecture §7): L0 → L2 → 案4 → §10.1確定 を1本で通す
+        let report = pipeline::judge_entry(q, &answer, agent.as_ref());
+        let e = cache.register_judged_entry(
+            q,
+            &answer,
+            &report.volatility,
+            &report.decomposition.triples,
+            report.shareable,
+            &report.share_reason,
+            agent.name(),
+        );
         println!("     A: {}", clip_utf8(&answer, 80));
         println!(
-            "     volatility={} / 共有={} ({})",
-            vol,
-            if dec.shareable { "可" } else { "不可" },
-            dec.reason
+            "     [L0]   volatility={} / {}",
+            report.l0_volatility,
+            if report.l0_gate.shareable {
+                "語彙ゲート通過".to_string()
+            } else {
+                format!("ブロック: {}", report.l0_gate.reason)
+            }
+        );
+        println!(
+            "     [L2]   自己申告: 単独回答可={} 事実型={} 申告volatility={}",
+            report.declaration.context_independent,
+            report.declaration.factual,
+            report.declaration.volatility
+        );
+        println!(
+            "     [案4]  トリプル分解: {}件 ({}){}",
+            report.decomposition.triples.len(),
+            if report.decomposition.success { "成功" } else { "失敗" },
+            report
+                .decomposition
+                .triples
+                .first()
+                .map(|t| format!(" 例: ({}, {}, {})", t.s, t.p, clip_utf8(&t.o, 40)))
+                .unwrap_or_default()
+        );
+        println!(
+            "     [確定] volatility={} (conf={:.2}) 根拠=[{}]",
+            report.volatility.class,
+            report.volatility.confidence,
+            report.volatility.evidence.join(", ")
+        );
+        println!(
+            "     共有={} ({}){}",
+            if report.shareable { "可" } else { "不可" },
+            report.share_reason,
+            report
+                .blocked_at
+                .map(|s| format!(" blocked_at={s:?}"))
+                .unwrap_or_default()
         );
         println!(
             "     登録 id={}... sig={}...",

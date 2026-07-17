@@ -9,6 +9,8 @@
 //       総当たり計算。PoC規模ではO(n)で十分(将来ANN等に差し替え可能)。
 use crate::embedder::Embedder;
 use crate::signer::Signer;
+use crate::triples::FactTriple;
+use crate::volatility::VolatilityAssessment;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -23,10 +25,18 @@ pub const SHARED_THRESHOLD: f32 = 0.90;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheEntry {
     pub question: String,
-    pub answer: String, // answer_or_triples(PoCでは平文回答のみ)
+    // 平文回答。Architecture §6 の実装specは「トリプルのみ保存・受信側再合成」
+    // だが、PoCは再合成未実装のため平文も併存させる(意図的縮約)
+    pub answer: String,
     pub embedding: Vec<f32>, // 正規化済み
     pub created: String, // ISO8601(claimed_date 相当・平文)
-    pub volatility: String, // permanent | slow | volatile
+    pub volatility: String, // permanent | slow | volatile(確定クラス。署名対象)
+    // 確信度・判定根拠(Architecture §10: 揮発性タグは確率的推定であり
+    // 再評価で更新されうるため署名対象に含めない)
+    pub volatility_confidence: f32,
+    pub volatility_evidence: Vec<String>,
+    // 事実トリプル(§6 facts。著者の主張内容そのものなので署名対象)
+    pub facts: Vec<FactTriple>,
     pub shareable: bool,
     pub share_reason: String,
     pub agent: String,
@@ -36,14 +46,35 @@ pub struct CacheEntry {
 }
 
 impl CacheEntry {
-    // 署名対象 = 質問 + 回答 + 日付 + 揮発性(キー順ソートで正規化)
+    // 署名対象 = 質問 + 回答 + 日付 + 揮発性クラス + 事実トリプル(キー順ソートで正規化)
+    //
+    // 脅威レビュー Medium-4 対応の注記: 本PoCの署名対象は上記
+    // question + answer + created + volatility(class) + facts であり、
+    // Architecture §6 が定める provenance(agent / モデル情報)はまだ署名対象に
+    // 含めていない(agent フィールドは平文保存のみ)。これはPoCの意図的縮約で
+    // あり、§6 完全準拠(provenance の署名対象化)と受信側での再判定は
+    // S3 着手前に対応予定。
+    //
+    // 不変条件: entry_id = sha256(この文字列)。署名対象を変えたら verify() 側と
+    // 必ず同時に整合させること(verify() は本メソッド経由で再計算するため、
+    // ここを変えれば id 計算と検証は自動的に揃うが、既存エントリは全て
+    // ハッシュ不一致で無効化される点に注意)。
+    // volatility_confidence / volatility_evidence は §10 の再評価で更新される
+    // 可変推定値のため意図的に署名対象外(上記フィールドコメント参照)。
     pub fn signed_payload(&self) -> String {
-        // serde_json::Map は既定(preserve_order未使用)でキーをソートして保持する
+        // serde_json::Map は既定(preserve_order未使用)でキーをソートして保持する。
+        // facts は Vec の並びを保持する(分解は決定的なので順序も正準)
+        let facts: Vec<serde_json::Value> = self
+            .facts
+            .iter()
+            .map(|t| json!({ "s": t.s, "p": t.p, "o": t.o }))
+            .collect();
         let j = json!({
             "question": self.question,
             "answer": self.answer,
             "created": self.created,
             "volatility": self.volatility,
+            "facts": facts,
         });
         j.to_string()
     }
@@ -120,11 +151,35 @@ impl<'a> SemanticCache<'a> {
         }
     }
 
+    // S1互換の縮約登録(L0判定のみの呼び出し元・既存テスト・ベンチ用)。
+    // 事実トリプルなし・確信度は既定値で register_judged_entry へ委譲する。
+    // 本体バイナリからは未使用のため dead_code を明示的に許可(テストが使用)。
+    #[allow(dead_code)]
     pub fn register_entry(
         &mut self,
         question: &str,
         answer: &str,
         volatility: &str,
+        shareable: bool,
+        share_reason: &str,
+        agent_name: &str,
+    ) -> &CacheEntry {
+        let assessment = VolatilityAssessment
+        {
+            class: volatility.to_string(),
+            confidence: 0.5, // L0のみの判定なので §10.1 ルール3相当の既定値
+            evidence: vec!["l0_only".to_string()],
+        };
+        self.register_judged_entry(question, answer, &assessment, &[], shareable, share_reason, agent_name)
+    }
+
+    // 判定パイプライン(pipeline::judge_entry)の結果を添えた完全登録(S2経路)。
+    pub fn register_judged_entry(
+        &mut self,
+        question: &str,
+        answer: &str,
+        volatility: &VolatilityAssessment,
+        facts: &[FactTriple],
         shareable: bool,
         share_reason: &str,
         agent_name: &str,
@@ -136,7 +191,10 @@ impl<'a> SemanticCache<'a> {
             answer: answer.to_string(),
             embedding,
             created,
-            volatility: volatility.to_string(),
+            volatility: volatility.class.clone(),
+            volatility_confidence: volatility.confidence,
+            volatility_evidence: volatility.evidence.clone(),
+            facts: facts.to_vec(),
             shareable,
             share_reason: share_reason.to_string(),
             agent: agent_name.to_string(),

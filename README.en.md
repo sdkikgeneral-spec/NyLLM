@@ -8,7 +8,7 @@ The same questions get thrown at LLMs all over the world, and every time a GPU r
 
 `Semantic Cache` `P2P / DHT` `NPU-first` `Local First AI` `Distributed Knowledge` `Sybil-resistant Reputation`
 
-**Status: 🚧 Design phase complete / PoC (S1: single-node minimal loop) in progress** — there is no live network yet. No overselling.
+**Status: 🚧 Design phase complete / PoC S1 (single-node minimal loop) and S2 (judgment pipeline) complete, S3 (P2P) not yet started** — there is no live network yet. No overselling.
 
 ---
 
@@ -90,10 +90,12 @@ Rather than "the AI judges well and protects you," **the network you join is its
 
 ## Roadmap
 
+The authoritative source for stage definitions, gates, and measured results is [docs/Roadmap.md](./docs/Roadmap.md) (Japanese). Summary below.
+
 | Stage | Content | Status |
 |---|---|---|
-| S1 | PoC minimal loop (embedding search → Agent on miss → signed registration, single node) | 🚧 In progress |
-| S2 | Decision pipeline (L0/L2 gates + triple decomposition + volatility tags) | ⬜ |
+| S1 | PoC minimal loop (embedding search → Agent on miss → signed registration, single node) | ✅ Done |
+| S2 | Decision pipeline (L0/L2 gates + triple decomposition + volatility tags) | ✅ Done |
 | S3 | P2P (DHT, witness signatures, multi-version coexistence) | ⬜ |
 | S4 | Reputation & independent verification (3-layer reputation, slashing, surprise verification) | ⬜ |
 | S5 | Legal mechanisms (regurgitation filter, revocation, provenance records) | ⬜ |

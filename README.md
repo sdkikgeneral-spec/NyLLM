@@ -8,7 +8,7 @@
 
 `Semantic Cache` `P2P / DHT` `NPU-first` `Local First AI` `Distributed Knowledge` `Sybil-resistant Reputation`
 
-**Status: 🚧 設計フェーズ完了 / PoC (S1: 単一ノード最小ループ) 進行中** — まだ動くネットワークはありません。誇大広告なし。
+**Status: 🚧 設計フェーズ完了 / PoC S1(単一ノード最小ループ)・S2(判定パイプライン)完了、S3(P2P化)着手前** — まだ動くネットワークはありません。誇大広告なし。
 
 ---
 
@@ -90,10 +90,12 @@ flowchart TD
 
 ## ロードマップ
 
+詳細な段階定義・ゲート・実測値は [docs/Roadmap.md](./docs/Roadmap.md) が一次情報です。以下は要約。
+
 | 段階 | 内容 | 状態 |
 |---|---|---|
-| S1 | PoC最小ループ (Embedding検索→ミス時Agent→署名付き登録、単一ノード) | 🚧 進行中 |
-| S2 | 判定パイプライン (L0/L2ゲート+トリプル分解+揮発性タグ) | ⬜ |
+| S1 | PoC最小ループ (Embedding検索→ミス時Agent→署名付き登録、単一ノード) | ✅ 完了 |
+| S2 | 判定パイプライン (L0/L2ゲート+トリプル分解+揮発性タグ) | ✅ 完了 |
 | S3 | P2P化 (DHT・witness署名・複数版併存) | ⬜ |
 | S4 | 評判・独立検証 (3層評判・スラッシング・抜き打ち検証) | ⬜ |
 | S5 | 法的機構 (regurgitationフィルタ・revocation・出所記録) | ⬜ |
