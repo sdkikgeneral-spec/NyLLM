@@ -19,7 +19,7 @@ model: opus
 ## ビルドと検証
 - ビルドは **Cargo**。`cd poc && cargo build && cargo run`(`cargo run -- --keep` で既存キャッシュ保持)。
 - Cargo feature: `--features ed25519`(`ed25519-dalek` による実Ed25519署名) / `--features onnx`(実Embedding経路。現状は未配線のスケルトンで `OnnxEmbedder::new`/`encode` はエラー/panicを返すのみ)。デフォルト両offで外部の重量級依存ゼロで全ループが動く。**この「デフォルトで軽量ビルド可能」を壊さない**(新規の重量級依存はfeatureゲートで)。
-- テストスイートは未整備。`cargo run` の実行(6問デモ: hit/miss→登録→tamper検知)が E2E 検証。**変更後は必ずビルド+実行し、hit/miss と tamper検知の挙動を確認して報告する。** `cache_store/`・`keys/` はCWD生成物でgit管理外。
+- 単体テストは `poc/src/tests/` にあり、`cargo test`(署名経路に触れたら `cargo test --features ed25519` も)で実行する。コンポーネントを実装したら `src/tests/test_<component>.rs` にテストも追加する(CLAUDE.md 規則4)。`cargo run` の実行(6問デモ: hit/miss→登録→tamper検知)が E2E 検証。**変更後は必ずビルド+テスト+実行し、hit/miss と tamper検知の挙動を確認して報告する。** `cache_store/`・`keys/` はCWD生成物でgit管理外。
 - Windows環境でこのマシンにcargoが無い場合は `$env:Path` にrustupの `.cargo/bin` を通す必要がある場合がある(PowerShellの新規呼び出しは環境変数の変更を引き継がないため、必要ならコマンドの先頭でPATHを明示的に再構成する)。
 
 ## 実装スタイル

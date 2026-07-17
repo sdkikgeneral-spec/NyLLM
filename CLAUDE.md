@@ -42,7 +42,7 @@ cargo build --features ed25519   # real Ed25519 signatures via ed25519-dalek (el
 cargo build --features onnx       # real-embedding extension point (currently an unwired stub, else MockEmbedder)
 ```
 
-There is no test suite yet. `src/main.rs` **is** the end-to-end demo (6 questions → hit/miss → register → tamper-detection); running the binary is how you verify behavior. Runtime artifacts `poc/cache_store/` (entry JSON) and `poc/keys/node.key` (node key) are generated in the CWD and git-ignored.
+Tests live in `poc/src/tests/` (wired from `main.rs` via a `#[cfg(test)] mod tests` block; production logic unchanged): run `cargo test` (also passes with `--features ed25519`), and the `#[ignore]`d lookup benchmark with `cargo test --release -- --ignored --nocapture bench_lookup`. `src/main.rs` remains the end-to-end demo (6 questions → hit/miss → register → tamper-detection); running the binary is still how you verify the full loop. Runtime artifacts `poc/cache_store/` (entry JSON) and `poc/keys/node.key` (node key) are generated in the CWD and git-ignored.
 
 ## PoC architecture
 

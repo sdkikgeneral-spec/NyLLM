@@ -13,6 +13,24 @@ mod embedder;
 mod signer;
 mod volatility;
 
+// テストモジュールの配線。
+// inline な mod tests の子モジュールは src/tests/ を基準に解決されるため、
+// #[path] はディレクトリを二重に付けず tests/ 内のファイル名だけを指定する。
+#[cfg(test)]
+mod tests
+{
+    #[path = "common.rs"]
+    mod common;
+    #[path = "test_cache.rs"]
+    mod test_cache;
+    #[path = "test_volatility.rs"]
+    mod test_volatility;
+    #[path = "test_signer.rs"]
+    mod test_signer;
+    #[path = "bench_cache.rs"]
+    mod bench_cache;
+}
+
 use cache::{SemanticCache, LOCAL_THRESHOLD, SHARED_THRESHOLD};
 use std::env;
 use std::fs;

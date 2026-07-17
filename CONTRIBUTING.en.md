@@ -91,7 +91,7 @@ See [`poc/README.md`](./poc/README.md) for details (it is the source for the bui
 
 When you implement a component, **you must implement tests along with it**. Create `src/tests/test_<component>.rs`, and do not consider the work complete until you have confirmed the tests pass.
 
-To be honest about the current state: the PoC has no test suite yet. `poc/src/main.rs` **is** the end-to-end demo (6 questions → hit/miss → register → tamper detection), and running the binary is how behavior is verified. Contributions that add tests for existing parts are welcome.
+To be honest about the current state: the PoC has a unit test suite under `poc/src/tests/` (cache / volatility / signer, plus an `#[ignore]`d search benchmark), runnable with `cargo test`. In addition, `poc/src/main.rs` **is** the end-to-end demo (6 questions → hit/miss → register → tamper detection), and running the binary via `cargo run` remains a valid way to verify behavior end to end. Contributions that expand the tests are welcome.
 
 ## 6. Invariants to read before you touch anything
 
@@ -110,7 +110,7 @@ The following *are* the security model. **Changing them silently breaks the desi
 - The default branch is `main`. **Do not commit directly to `main` — create a branch.**
 - **One PR, one concern.** Do not mix in unrelated changes.
 - **Changes that involve a design decision need an Issue first.** As stated above, `docs/` is authoritative, so anything affecting the design needs agreement on the documentation side first.
-- Confirm `cargo build` and `cargo run` pass before committing (and mind the caution in §4 about running `cargo fmt` across the tree).
+- Confirm `cargo build`, `cargo test`, and `cargo run` pass before committing (and mind the caution in §4 about running `cargo fmt` across the tree).
 
 ## 8. CLA and license
 

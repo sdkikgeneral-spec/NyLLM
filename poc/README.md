@@ -22,6 +22,25 @@ cargo run -- --keep
 
 実行するとカレントディレクトリに `cache_store/`(エントリJSON)と `keys/node.key`(ノード鍵)が作られる。
 
+## テスト
+
+```sh
+cd poc
+cargo test                      # 通常テスト(20 passed / 1 ignored)
+cargo test --features ed25519   # Ed25519 実署名でも同一テストが通ることを確認
+
+# 検索ベンチ(#[ignore] 付き。release ビルドでないと非現実的に遅い数値になるため必ず --release で)
+cargo test --release -- --ignored --nocapture bench_lookup
+```
+
+テストが検証している主な内容:
+
+- `entry_id = sha256(signed_payload)` の独立再計算による照合
+- 改ざん検知の2経路分離(answer 書き換え=ハッシュ不一致 / author_sig 書き換え=署名検証失敗。設計メモ §4 の「ハッシュ=検知、署名=詐称防止」の区別)
+- キャッシュの HIT/MISS 動作(しきい値)
+- 揮発性分類(volatile/slow)と共有可否 AND ゲート(各条件の単独ブロック+全通過時のみ共有可)
+- `DummySigner` の署名/検証ラウンドトリップ・鍵永続化・MAC としての限界
+
 ## 構成
 
 | ファイル | 役割 |
@@ -34,6 +53,7 @@ cargo run -- --keep
 | `src/signer/ed25519_signer.rs` | `Ed25519Signer`(`ed25519-dalek` による実Ed25519署名、`feature = "ed25519"` 時) |
 | `src/agent.rs` | `Agent` トレイト + `MockAgent`(固定回答)。実LLM経路はこのトレイトに差し込む |
 | `src/volatility.rs` | L0揮発性タグ(時間指示語→volatile/他→slow)+ 共有可否ANDゲート |
+| `src/tests/` | 単体テスト一式(`common.rs`=一時ディレクトリヘルパー、`test_cache.rs` / `test_volatility.rs` / `test_signer.rs`、`bench_cache.rs`=`#[ignore]`付きベンチ)。`main.rs` の `#[cfg(test)] mod tests` から配線 |
 | `python_prototype/` | 初期Pythonプロトタイプ(参考。実Embedding/実Claude Agentの実装例あり) |
 
 ## Cargo feature(依存の有無で変わること)

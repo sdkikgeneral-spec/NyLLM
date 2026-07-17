@@ -79,3 +79,76 @@ cargo run
 - `ed25519`featureを既定化し DummySigner を排除
 - volatile エントリの TTL 失効(created + TTL で読み時破棄)
 - 2ノード間のエントリ交換シミュレーション(witness署名の最小実装)
+
+## 8. テスト項目と結果
+
+単体テストは `poc/src/tests/` に配置(`common.rs` は一時ディレクトリヘルパー)。実行コマンドの詳細は [`poc/README.md`](../poc/README.md) の「テスト」節を参照(本節では重複記載しない)。
+
+### 8.1 テストファイルと検証内容
+
+**`test_cache.rs`(対象: `cache.rs`)** — 7件
+
+| テスト関数 | 検証内容 |
+|---|---|
+| `entry_id_equals_sha256_of_signed_payload` | `entry_id` が `signed_payload()` の sha256(hex) と一致する(ハッシュ計算はテスト側で独立に再現) |
+| `valid_entry_survives_reload` | 改ざんしていない正常エントリは再ロードでも生き残る(ポジティブコントロール) |
+| `tampered_answer_dropped_by_hash_mismatch` | 保存済みJSONの `answer` 書き換え → 再計算ハッシュが `entry_id` と不一致で除外(改ざん**検知**の経路) |
+| `tampered_signature_dropped_by_verify_failure` | `author_sig` のみ書き換え(内容ハッシュは一致のまま)→ 署名検証失敗で除外(詐称**防止**の経路) |
+| `exact_match_hits_with_similarity_near_one` | 完全一致質問で HIT(sim ≥ 0.999) |
+| `empty_cache_misses` | 空キャッシュでは MISS(`entry` が `None`) |
+| `dissimilar_query_misses_below_threshold` | 無関係な質問は `LOCAL_THRESHOLD` 未満で MISS |
+
+改ざん系の2テストは、設計メモ §4 の「ハッシュ=改ざん検知」「署名=詐称防止」が**別々の検知経路**であることを個別に実証する意図で分離している(`author_sig` は `signed_payload` に含まれないため、書き換えてもハッシュ照合は通り、署名検証だけが失敗する)。
+
+**`test_volatility.rs`(対象: `volatility.rs`)** — 7件
+
+| テスト関数 | 検証内容 |
+|---|---|
+| `classify_time_referring_question_is_volatile` | 時間指示語(「最新」)を含む質問 → `volatile` |
+| `classify_plain_question_is_slow` | 時間指示語を含まない事実質問 → `slow` |
+| `context_dependent_question_blocks_share` | 文脈依存語(「それ」)**単独**で共有不可 |
+| `subjective_question_blocks_share` | 主観語(best)**単独**で共有不可 |
+| `personal_question_blocks_share` | 個人参照(「私の」)**単独**で共有不可 |
+| `volatile_alone_blocks_share` | 中立質問でも `volatility=="volatile"` **単独**で共有不可 |
+| `all_clear_factual_slow_is_shareable` | 全ブロック条件をクリアした場合**のみ** `shareable=true`(ANDゲートの唯一の可ケース) |
+
+**`test_signer.rs`(対象: `signer.rs` / `DummySigner`)** — 6件
+
+| テスト関数 | 検証内容 |
+|---|---|
+| `sign_then_verify_roundtrip_succeeds` | 自ノード鍵での署名→検証ラウンドトリップ成功 |
+| `verify_fails_for_different_payload` | ペイロード改ざんで検証失敗 |
+| `verify_fails_for_tampered_signature` | 署名文字列改ざんで検証失敗 |
+| `verify_fails_across_different_keys` | 別鍵の signer では検証不可(公開検証できない **MAC の限界**の実証) |
+| `same_key_file_reloads_and_verifies` | 同一鍵ファイルから再読込した別インスタンス間で検証成功(鍵の永続化) |
+| `creates_missing_multi_level_parent_dirs` | 多階層の未存在親ディレクトリを持つ鍵パスでも鍵ファイルが自動生成される |
+
+これらは `DummySigner` を直接使うため、`feature = "ed25519"` の有無に依存せず通る。
+
+**`bench_cache.rs`** — `#[ignore]` 付きベンチマーク 1件
+
+| テスト関数 | 内容 |
+|---|---|
+| `bench_lookup` | `SemanticCache::lookup()` を n=100 / 1,000 / 10,000 件のシンセティックエントリに対し各100回呼び、平均時間を計測。通常の `cargo test` ではスキップされる |
+
+### 8.2 実測結果(2026-07-17 時点)
+
+| コマンド | 結果 |
+|---|---|
+| `cargo test` | **20 passed / 0 failed / 1 ignored** |
+| `cargo test --features ed25519` | **20 passed / 0 failed / 1 ignored**(署名テストは DummySigner 直接利用のため feature 有無に非依存) |
+| `cargo run` | 既存6問デモに regression なし(1 hit / 5 misses / キャッシュ5件、改ざん1件書換→再読込後4件) |
+
+検索ベンチ(`cargo test --release -- --ignored --nocapture bench_lookup`)の参考計測値:
+
+| n(件) | lookup 平均 |
+|---|---|
+| 100 | 約 46 µs/回 |
+| 1,000 | 約 454 µs/回 |
+| 10,000 | 約 5,387 µs/回 |
+
+ほぼ O(n) 線形(§2 の brute-force 走査どおり)。**これは断定的な性能保証ではなく環境依存の参考計測値**であり、必要に応じて上記コマンドで再計測すること(debug ビルドでは非現実的に遅い数値になるため必ず `--release` を付ける)。
+
+### 8.3 ロードマップとの対応
+
+本テスト整備をもって S1(PoC最小ループ)のテストゲートを通過。進捗ステータスの一次情報は [`docs/Roadmap.md`](./Roadmap.md) を参照。
