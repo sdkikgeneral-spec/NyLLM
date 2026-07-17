@@ -5,8 +5,9 @@
 (L0語彙ゲート → L2 Agent自己申告 → 案4トリプル分解 → §10.1揮発性初期付与)が入り、
 共有可否を単なる語彙ルールより厳密に判定する。
 
-設計の背景は [`docs/PoC_Minimal_Loop.md`](../docs/PoC_Minimal_Loop.md) と
+設計の背景は [`docs/PoC_Design_Notes.md`](../docs/PoC_Design_Notes.md) と
 [`docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md`](../docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md) を参照。
+テスト項目・結果・動作確認は [`docs/PoC_Test_Results.md`](../docs/PoC_Test_Results.md) を参照。
 
 ## ビルドと実行
 

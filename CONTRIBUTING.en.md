@@ -28,7 +28,8 @@ Reading order:
 | 1 | [Architecture design](./docs/Winny_Type_Semantic_Cache_Architecture.md) | The clean implementation spec. **Start here** |
 | 2 | [Competitive analysis & reliability design notes](./docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md) | Primary decisions on threat model, Sybil defense, volatility, copyright (§1–9) |
 | 3 | [Original concept](./docs/Winny_Type_Semantic_Cache_AI_Concept.md) | Philosophy and prototype. Closer to a historical document |
-| 4 | [PoC minimal loop design notes](./docs/PoC_Minimal_Loop.md) | The PoC's own design and its intentional simplifications |
+| 4 | [PoC implementation design notes](./docs/PoC_Design_Notes.md) | The PoC's own design and its intentional simplifications |
+| 5 | [PoC test items and results](./docs/PoC_Test_Results.md) | The PoC's test items, results, and end-to-end demo |
 
 (The design documents are written in Japanese.)
 

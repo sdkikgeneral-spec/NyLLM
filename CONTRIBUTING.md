@@ -28,7 +28,8 @@
 | 1 | [アーキテクチャ設計書](./docs/Winny_Type_Semantic_Cache_Architecture.md) | 実装仕様の清書版。**まずこれ** |
 | 2 | [競合分析 & 信頼性設計メモ](./docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md) | 脅威モデル・シビル対策・揮発性・著作権の一次判断(§1-9) |
 | 3 | [元コンセプト](./docs/Winny_Type_Semantic_Cache_AI_Concept.md) | 思想と原型。歴史的文書に近い |
-| 4 | [PoC 最小ループ設計ノート](./docs/PoC_Minimal_Loop.md) | PoC 自身の設計と割り切り |
+| 4 | [PoC 実装設計ノート](./docs/PoC_Design_Notes.md) | PoC 自身の設計と割り切り |
+| 5 | [PoC テスト項目と結果](./docs/PoC_Test_Results.md) | PoC のテスト項目・結果・動作確認 |
 
 守ってほしい規約:
 

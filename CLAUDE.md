@@ -13,7 +13,8 @@ The PoC deliberately implements a *reduced* version of decisions made in the doc
 - `docs/Winny_Type_Semantic_Cache_Architecture.md` — the clean **implementation spec** (v1.0). Start here.
 - `docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md` — competitive analysis + reliability design (§1–9: threats, Sybil defense, volatility tags, copyright).
 - `docs/Winny_Type_Semantic_Cache_AI_Concept.md` — original concept/philosophy.
-- `docs/PoC_Minimal_Loop.md` — the PoC's own design notes.
+- `docs/PoC_Design_Notes.md` — the PoC's own design notes (scope, modules, dependencies, build, deliberate simplifications).
+- `docs/PoC_Test_Results.md` — the PoC's test items, results, and end-to-end demo (verification report for `poc/`).
 - `docs/Roadmap.md` — the implementation roadmap (stages S1–S7, gates, and current status), extracted from Architecture.md §13.2. This is the single place tracking implementation progress — update its status column when a stage's state changes, not Architecture.md.
 
 Deprecated docs go in `docs/archives/` (do not delete them).

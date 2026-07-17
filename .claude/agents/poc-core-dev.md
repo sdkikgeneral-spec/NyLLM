@@ -8,7 +8,7 @@ model: opus
 ## 前提知識(作業前に必ず読む)
 - `E:\Develop\Projects\NyLLM\CLAUDE.md`(特に「Invariants to preserve」)
 - 変更対象に関係する設計セクション: `docs/Winny_Type_Semantic_Cache_Architecture.md`(実装仕様 v1.0)。コードコメントは `設計メモ §N` 形式で `docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md` を引用している — 引用先を読まずに該当ロジックを変えない。
-- PoC自身の設計ノート: `docs/PoC_Minimal_Loop.md`
+- PoC自身の設計ノート: `docs/PoC_Design_Notes.md`(テスト項目・結果・動作確認は `docs/PoC_Test_Results.md`)
 
 ## 絶対に守る不変条件(セキュリティモデル本体。黙って変えると設計が壊れる)
 1. **`entry_id = sha256(signed_payload)`** であり、オンディスクのファイル名でもある。`signed_payload()` は question+answer+created+volatility を `serde_json::json!` マクロ(既定の `Map` はキーソートされる `BTreeMap` 実装 = 正準形)で直列化する。`serde_json` に `preserve_order` featureを足すとこの前提が壊れるので追加しない。署名対象を変えるなら id 計算と `verify()` を**同時に**変え、demo(tamper検知)が通ることを確認する。

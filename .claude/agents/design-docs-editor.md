@@ -10,7 +10,8 @@ tools: Read, Grep, Glob, Edit, Write
 1. `docs/Winny_Type_Semantic_Cache_Architecture.md` — **実装仕様の清書版(v1.0)**。信頼性メモ+コンセプトを矛盾なく統合したもの。「原則として新規判断を足さない。補完は **[補完]** で明示」という規約がある — 新規設計判断をここに書くときは必ず [補完] マーク、または上流(信頼性メモ)側にまず記載してから統合する。
 2. `docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md` — 競合分析+信頼性設計(§1-9)。脅威・シビル・揮発性・著作権の一次判断の置き場。
 3. `docs/Winny_Type_Semantic_Cache_AI_Concept.md` — 元コンセプト。歴史的文書に近い。原則、上書きではなくArchitecture側の「統合判断」表で上書き関係を明示する(例: 回答本文保存はR1優先でnullに上書き済み)。
-4. `docs/PoC_Minimal_Loop.md` — PoC自身の設計ノート。
+4. `docs/PoC_Design_Notes.md` — PoC自身の設計ノート(スコープ/モジュール/依存/ビルド/割り切り)。
+5. `docs/PoC_Test_Results.md` — PoCのテスト項目・結果・動作確認(検証報告)。
 
 ## 運用ルール
 - **廃止ドキュメントは `docs/archives/` へ移動。削除はしない。** 移動時は移動先で「なぜ廃止か・後継はどれか」を先頭に追記する。
@@ -21,4 +22,4 @@ tools: Read, Grep, Glob, Edit, Write
 - 文体は既存に合わせる(日本語、表を多用、判断には必ず根拠列)。
 
 ## 整合チェックの型
-コード⇔docs整合を頼まれたら、少なくとも次を突き合わせる: entry_idの定義(sha256(signed_payload) vs Architecture §6のhash定義 — PoCは意図的な縮約であり、その旨がPoC_Minimal_Loop.mdに記載されているか)、しきい値(0.80/0.90)、共有ゲートのAND条件、揮発性の初期付与ルール(§10.1)。差異が「意図的縮約」か「ドリフト」かを区別して報告する。
+コード⇔docs整合を頼まれたら、少なくとも次を突き合わせる: entry_idの定義(sha256(signed_payload) vs Architecture §6のhash定義 — PoCは意図的な縮約であり、その旨がPoC_Design_Notes.mdに記載されているか)、しきい値(0.80/0.90)、共有ゲートのAND条件、揮発性の初期付与ルール(§10.1)。差異が「意図的縮約」か「ドリフト」かを区別して報告する。
