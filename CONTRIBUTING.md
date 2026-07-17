@@ -25,9 +25,9 @@
 
 | 順 | ドキュメント | 位置づけ |
 |---|---|---|
-| 1 | [アーキテクチャ設計書](./docs/Winny_Type_Semantic_Cache_Architecture.md) | 実装仕様の清書版。**まずこれ** |
-| 2 | [競合分析 & 信頼性設計メモ](./docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md) | 脅威モデル・シビル対策・揮発性・著作権の一次判断(§1-9) |
-| 3 | [元コンセプト](./docs/Winny_Type_Semantic_Cache_AI_Concept.md) | 思想と原型。歴史的文書に近い |
+| 1 | [アーキテクチャ設計書](./docs/Architecture.md) | 実装仕様の清書版。**まずこれ** |
+| 2 | [競合分析 & 信頼性設計メモ](./docs/信頼性設計メモ.md) | 脅威モデル・シビル対策・揮発性・著作権の一次判断(§1-9) |
+| 3 | [元コンセプト](./docs/AI_Concept.md) | 思想と原型。歴史的文書に近い |
 | 4 | [PoC 実装設計ノート](./docs/PoC_Design_Notes.md) | PoC 自身の設計と割り切り |
 | 5 | [PoC テスト項目と結果](./docs/PoC_Test_Results.md) | PoC のテスト項目・結果・動作確認 |
 
@@ -94,13 +94,13 @@ cargo build --features ed25519
 
 ## 6. 触る前に読むべき不変条件
 
-以下はセキュリティモデルそのものです。**黙って変更すると設計が壊れます。** 根拠は [信頼性設計メモ](./docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md) と [アーキテクチャ設計書](./docs/Winny_Type_Semantic_Cache_Architecture.md) にあります。
+以下はセキュリティモデルそのものです。**黙って変更すると設計が壊れます。** 根拠は [信頼性設計メモ](./docs/信頼性設計メモ.md) と [アーキテクチャ設計書](./docs/Architecture.md) にあります。
 
 - **`entry_id = sha256(signed_payload)`** であり、これがディスク上のファイル名になります。`signed_payload()` は question + answer + created + volatility を対象とし、`serde_json::json!` で直列化されます(既定の `Map` の backing は `BTreeMap` なのでキーが整列され正準になります)。**`serde_json` の `preserve_order` cargo feature を有効化しないでください** — キー順が壊れて正準性が失われます。署名対象を変える場合は、id と `verify()` を**同時に**変更してください。
 - **load 時検証** — `SemanticCache::load()` はハッシュを再計算し `author_sig` を検証します。どちらかに失敗したエントリは破棄されます。**ハッシュ = 改ざん検知(公開関数なので攻撃者も再計算できる) / 署名 = 詐称防止**であり、この2つを混同しないでください(設計メモ §4 参照)。なお `DummySigner::verify` が自ノード以外の鍵のエントリを拒否するのは **MAC の限界に由来する仕様であってバグではありません**。P2P の load 経路を書くときに `verify` を緩めると詐称防止が消えます。**解決策は `--features ed25519` であって `verify` の緩和ではありません。**
-- **保守的な共有ゲート** — `share_gate()` は 文脈自立性 AND 事実型(非主観・非個人) AND 非揮発性 の AND 判定で、**既定は「共有しない」**です。「疑わしきは共有しない」に倒しています。人類規模では、悪いエントリ1件がネットワーク全体を汚染するためです。**PoC のゲートは L0(語彙ベース)のみの縮約**で、本来のゲートは L2「単独回答可」判定と regurgitation フィルタを含みます([Architecture §7](./docs/Winny_Type_Semantic_Cache_Architecture.md))。**AND 条件は追加してよいが、削ってはいけません。**
-- **事実トリプルのみ保存(R1)** — `poc/src/cache.rs` の `answer: String`(平文回答)は **PoC の縮約**です。本来の規則は R1 = **事実トリプル+出典メタのみを保存し、回答は受信側で再合成、トリプル化できない内容は Public へ登録しない**([Architecture §11 R1 / T-H](./docs/Winny_Type_Semantic_Cache_Architecture.md))。PoC を共有方向に拡張する際、`answer` をそのままネットワークに載せないでください。
-- **しきい値** — `LOCAL_THRESHOLD = 0.80` / `SHARED_THRESHOLD = 0.90`。共有側が厳しいのは、再現率より適合率を優先するためです。**共有用 τ ≥ 0.9 は要件(下限)**であり([Architecture §5.1 / T-A](./docs/Winny_Type_Semantic_Cache_Architecture.md))、単なるチューニング値ではありません。実測により**引き上げる**ことはできますが、**引き下げることはできません**。引き下げには先に Architecture §5.1 / T-A の変更が必要です。
+- **保守的な共有ゲート** — `share_gate()` は 文脈自立性 AND 事実型(非主観・非個人) AND 非揮発性 の AND 判定で、**既定は「共有しない」**です。「疑わしきは共有しない」に倒しています。人類規模では、悪いエントリ1件がネットワーク全体を汚染するためです。**PoC のゲートは L0(語彙ベース)のみの縮約**で、本来のゲートは L2「単独回答可」判定と regurgitation フィルタを含みます([Architecture §7](./docs/Architecture.md))。**AND 条件は追加してよいが、削ってはいけません。**
+- **事実トリプルのみ保存(R1)** — `poc/src/cache.rs` の `answer: String`(平文回答)は **PoC の縮約**です。本来の規則は R1 = **事実トリプル+出典メタのみを保存し、回答は受信側で再合成、トリプル化できない内容は Public へ登録しない**([Architecture §11 R1 / T-H](./docs/Architecture.md))。PoC を共有方向に拡張する際、`answer` をそのままネットワークに載せないでください。
+- **しきい値** — `LOCAL_THRESHOLD = 0.80` / `SHARED_THRESHOLD = 0.90`。共有側が厳しいのは、再現率より適合率を優先するためです。**共有用 τ ≥ 0.9 は要件(下限)**であり([Architecture §5.1 / T-A](./docs/Architecture.md))、単なるチューニング値ではありません。実測により**引き上げる**ことはできますが、**引き下げることはできません**。引き下げには先に Architecture §5.1 / T-A の変更が必要です。
 
 > cache / signing / volatility / 共有ゲート に触れる PR は、脅威モデル観点でのレビュー対象になります。レビューに時間がかかることをあらかじめご了承ください。
 

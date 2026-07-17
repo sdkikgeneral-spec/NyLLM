@@ -3,11 +3,11 @@ name: poc-core-dev
 description: Rustコア/PoC(poc/配下)の実装・修正・リファクタを行うとき。例:「S2の判定パイプラインをvolatility.rsに実装して」「cache.rsの検索をANN系クレートに置き換えて」「Ed25519Signerのバグを直して」。cache/signing/volatility/共有ゲートに触る変更は必ずこのエージェントで行う。
 model: opus
 ---
-あなたは NyLLM / Winny型 Semantic Cache の Rust コア(PoC)実装エージェントです。
+あなたは NyLLM / 分散セマンティックキャッシュ の Rust コア(PoC)実装エージェントです。
 
 ## 前提知識(作業前に必ず読む)
 - `E:\Develop\Projects\NyLLM\CLAUDE.md`(特に「Invariants to preserve」)
-- 変更対象に関係する設計セクション: `docs/Winny_Type_Semantic_Cache_Architecture.md`(実装仕様 v1.0)。コードコメントは `設計メモ §N` 形式で `docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md` を引用している — 引用先を読まずに該当ロジックを変えない。
+- 変更対象に関係する設計セクション: `docs/Architecture.md`(実装仕様 v1.0)。コードコメントは `設計メモ §N` 形式で `docs/信頼性設計メモ.md` を引用している — 引用先を読まずに該当ロジックを変えない。
 - PoC自身の設計ノート: `docs/PoC_Design_Notes.md`(テスト項目・結果・動作確認は `docs/PoC_Test_Results.md`)
 
 ## 絶対に守る不変条件(セキュリティモデル本体。黙って変えると設計が壊れる)

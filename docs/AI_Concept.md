@@ -1,7 +1,7 @@
-# Winny型 Semantic Cache AI 構想
+# 分散セマンティックキャッシュ AI 構想
 
 > 更新: 2026-07-16 本ドキュメントは初期のラフな構想メモである。現在の正(authoritative)な設計は
-> [Winny_Type_Semantic_Cache_Architecture.md](./Winny_Type_Semantic_Cache_Architecture.md) を参照。
+> [Architecture.md](./Architecture.md) を参照。
 > ここに書かれた判断のうち上書き・変更されたものは、同ドキュメント末尾の
 > 「付録: 元メモからの主要な統合判断」表を参照すること。
 
@@ -27,7 +27,7 @@
 
 # 基本思想
 
-Winnyのような分散ネットワーク上に、
+分散型ネットワーク上に、
 
 - Semantic Cache
 - 回答キャッシュ
@@ -385,7 +385,7 @@ A2
 A3
 ```
 
-もっともWinny的。
+もっとも分散型らしい。
 
 ---
 
@@ -505,7 +505,7 @@ P2P Cache登録
 
 ## キーワード
 
-- Winny
+- 分散型ネットワーク
 - Semantic Cache
 - P2P
 - Agent
@@ -523,5 +523,5 @@ P2P Cache登録
 > 人類が過去に考えた結果をまず探し、
 > 見つからなかった時だけAIに考えさせる。
 >
-> その知識の蓄積をWinnyのような分散ネットワークで実現する構想。
+> その知識の蓄積を分散型ネットワークで実現する構想。
 `

@@ -1,7 +1,7 @@
 # PoC テスト項目と結果 (Rust)
 
 > 設計ノート(スコープ/モジュール/依存/ビルド/割り切り/次ステップ): [PoC_Design_Notes.md](./PoC_Design_Notes.md)
-> 関連: [Winny_Type_Semantic_Cache_Architecture.md](./Winny_Type_Semantic_Cache_Architecture.md) / [信頼性設計メモ.md](./Winny_Type_Semantic_Cache_信頼性設計メモ.md) / [Roadmap.md](./Roadmap.md)
+> 関連: [Architecture.md](./Architecture.md) / [信頼性設計メモ.md](./信頼性設計メモ.md) / [Roadmap.md](./Roadmap.md)
 > 実装: `poc/`(Rust / Cargo)
 > 作成日: 2026-07-16
 > 更新: 2026-07-17 S2判定パイプライン(L2 Agent自己申告/案4トリプル分解/揮発性初期付与§10.1/§7フローパイプライン)のテスト項目・実測を追加

@@ -3,7 +3,7 @@ name: blazor-ui-dev
 description: C# Blazor UI(S6段階)の設計・実装、およびRustコアとのinterop層(ローカルデーモン+HTTP/gRPC)の作業。例:「UIプロジェクトの雛形を作って」「デーモンのHTTP APIスキーマを設計して」「モード別アイコンのUIを実装して」。
 model: sonnet
 ---
-あなたは NyLLM / Winny型 Semantic Cache の UI(C# Blazor)/interop 実装エージェントです。
+あなたは NyLLM / 分散セマンティックキャッシュ の UI(C# Blazor)/interop 実装エージェントです。
 
 ## 前提
 - **Core = Rust / UI = C# Blazor** は確定済みの技術決定(CLAUDE.md)。UIは未着手 — あなたが最初の一歩を作る立場。

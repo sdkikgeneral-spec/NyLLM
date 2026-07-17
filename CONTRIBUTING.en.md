@@ -25,9 +25,9 @@ Reading order:
 
 | # | Document | Role |
 |---|---|---|
-| 1 | [Architecture design](./docs/Winny_Type_Semantic_Cache_Architecture.md) | The clean implementation spec. **Start here** |
-| 2 | [Competitive analysis & reliability design notes](./docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md) | Primary decisions on threat model, Sybil defense, volatility, copyright (§1–9) |
-| 3 | [Original concept](./docs/Winny_Type_Semantic_Cache_AI_Concept.md) | Philosophy and prototype. Closer to a historical document |
+| 1 | [Architecture design](./docs/Architecture.md) | The clean implementation spec. **Start here** |
+| 2 | [Competitive analysis & reliability design notes](./docs/信頼性設計メモ.md) | Primary decisions on threat model, Sybil defense, volatility, copyright (§1–9) |
+| 3 | [Original concept](./docs/AI_Concept.md) | Philosophy and prototype. Closer to a historical document |
 | 4 | [PoC implementation design notes](./docs/PoC_Design_Notes.md) | The PoC's own design and its intentional simplifications |
 | 5 | [PoC test items and results](./docs/PoC_Test_Results.md) | The PoC's test items, results, and end-to-end demo |
 
@@ -96,13 +96,13 @@ To be honest about the current state: the PoC has a unit test suite under `poc/s
 
 ## 6. Invariants to read before you touch anything
 
-The following *are* the security model. **Changing them silently breaks the design.** The rationale lives in the [reliability design notes](./docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md) and the [architecture design](./docs/Winny_Type_Semantic_Cache_Architecture.md).
+The following *are* the security model. **Changing them silently breaks the design.** The rationale lives in the [reliability design notes](./docs/信頼性設計メモ.md) and the [architecture design](./docs/Architecture.md).
 
 - **`entry_id = sha256(signed_payload)`**, and this is the on-disk filename. `signed_payload()` covers question + answer + created + volatility, serialized via `serde_json::json!` (the default `Map` backing is a `BTreeMap`, so keys are sorted → canonical). **Do not enable the `preserve_order` cargo feature on `serde_json`** — it breaks key ordering and destroys canonicality. If you change what is signed, change the id and `verify()` **together**.
 - **Verify on load** — `SemanticCache::load()` recomputes the hash and checks `author_sig`; entries failing either are dropped. **Hash = *tamper detection* (it is a public function, so an attacker can recompute it too) / signature = *forgery prevention*** — keep the two distinct (see 設計メモ §4). Note that `DummySigner::verify` rejecting entries signed with a key other than the node's own is **intended behavior stemming from the limits of a MAC, not a bug**. If you loosen `verify` while writing the P2P load path, forgery prevention disappears. **The fix is `--features ed25519`, not relaxing `verify`.**
-- **Conservative share gate** — `share_gate()` is an AND of context-independence, factual (non-subjective, non-personal), and non-volatile, and the default is **not shareable**. The bias is toward "when in doubt, do not share," because at human scale a single bad shared entry pollutes the network. **The PoC's gate is a reduction implementing L0 (lexical) only**; the real gate also includes the L2 "answerable standalone" judgment and the regurgitation filter ([Architecture §7](./docs/Winny_Type_Semantic_Cache_Architecture.md)). **You may add AND conditions, but you must not remove them.**
-- **Store facts as triples only (R1)** — `answer: String` (plaintext answer) in `poc/src/cache.rs` is a **PoC reduction**. The real rule is R1: **store only fact triples + provenance metadata, re-synthesize the answer on the receiving side, and never register content that cannot be expressed as triples into Public** ([Architecture §11 R1 / T-H](./docs/Winny_Type_Semantic_Cache_Architecture.md)). When extending the PoC toward sharing, do not put `answer` on the network as-is.
-- **Thresholds** — `LOCAL_THRESHOLD = 0.80` / `SHARED_THRESHOLD = 0.90`. The shared side is stricter because precision is prioritized over recall. **The shared τ ≥ 0.9 is a requirement (a floor)** ([Architecture §5.1 / T-A](./docs/Winny_Type_Semantic_Cache_Architecture.md)), not merely a tuning value. Measurement may **raise** it, but it **cannot be lowered**. Lowering it requires changing Architecture §5.1 / T-A first.
+- **Conservative share gate** — `share_gate()` is an AND of context-independence, factual (non-subjective, non-personal), and non-volatile, and the default is **not shareable**. The bias is toward "when in doubt, do not share," because at human scale a single bad shared entry pollutes the network. **The PoC's gate is a reduction implementing L0 (lexical) only**; the real gate also includes the L2 "answerable standalone" judgment and the regurgitation filter ([Architecture §7](./docs/Architecture.md)). **You may add AND conditions, but you must not remove them.**
+- **Store facts as triples only (R1)** — `answer: String` (plaintext answer) in `poc/src/cache.rs` is a **PoC reduction**. The real rule is R1: **store only fact triples + provenance metadata, re-synthesize the answer on the receiving side, and never register content that cannot be expressed as triples into Public** ([Architecture §11 R1 / T-H](./docs/Architecture.md)). When extending the PoC toward sharing, do not put `answer` on the network as-is.
+- **Thresholds** — `LOCAL_THRESHOLD = 0.80` / `SHARED_THRESHOLD = 0.90`. The shared side is stricter because precision is prioritized over recall. **The shared τ ≥ 0.9 is a requirement (a floor)** ([Architecture §5.1 / T-A](./docs/Architecture.md)), not merely a tuning value. Measurement may **raise** it, but it **cannot be lowered**. Lowering it requires changing Architecture §5.1 / T-A first.
 
 > PRs touching cache / signing / volatility / the share gate are subject to threat-model review. Please expect review to take time.
 

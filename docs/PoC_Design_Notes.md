@@ -1,7 +1,7 @@
 # PoC実装 — 設計ノート (Rust)
 
-> 親ドキュメント: [Winny_Type_Semantic_Cache_AI_Concept.md](./Winny_Type_Semantic_Cache_AI_Concept.md) /
-> [Winny_Type_Semantic_Cache_信頼性設計メモ.md](./Winny_Type_Semantic_Cache_信頼性設計メモ.md)
+> 親ドキュメント: [AI_Concept.md](./AI_Concept.md) /
+> [信頼性設計メモ.md](./信頼性設計メモ.md)
 > テスト項目・結果・動作確認: [PoC_Test_Results.md](./PoC_Test_Results.md)
 > 実装: `poc/`(Rust / Cargo)
 > 作成日: 2026-07-16

@@ -1,4 +1,4 @@
-# Winny型 Semantic Cache PoC 依存パッケージ
+# 分散セマンティックキャッシュ PoC 依存パッケージ
 # --- 必須(コア) ---
 numpy>=1.26
 cryptography>=42.0

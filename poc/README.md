@@ -1,4 +1,4 @@
-# Winny型 Semantic Cache — PoC 最小ループ (Rust)
+# 分散セマンティックキャッシュ — PoC 最小ループ (Rust)
 
 質問 → Embedding → 意味検索 → ヒットならキャッシュ回答 / ミスなら Agent 推論 → 署名付き登録、
 という単一ノードの核ループを Rust で実装した PoC。ミス時の登録経路には S2 で判定パイプライン
@@ -6,7 +6,7 @@
 共有可否を単なる語彙ルールより厳密に判定する。
 
 設計の背景は [`docs/PoC_Design_Notes.md`](../docs/PoC_Design_Notes.md) と
-[`docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md`](../docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md) を参照。
+[`docs/信頼性設計メモ.md`](../docs/信頼性設計メモ.md) を参照。
 テスト項目・結果・動作確認は [`docs/PoC_Test_Results.md`](../docs/PoC_Test_Results.md) を参照。
 
 ## ビルドと実行

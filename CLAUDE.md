@@ -4,15 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-**NyLLM / Winny型 Semantic Cache** — a design for a Winny-style P2P network that shares a *semantic answer cache* across users at human scale. The core idea: semantic-search a shared cache first; only run LLM inference on a miss, then register the signed result. This repo is **design-heavy and early-stage** — the authoritative artifact is the design set in `docs/`, and `poc/` is a single-node Rust proof of concept of the core loop (no P2P/reputation/revocation yet).
+**NyLLM / 分散セマンティックキャッシュ (Distributed Semantic Cache)** — a design for a distributed P2P network that shares a *semantic answer cache* across users at human scale. The core idea: semantic-search a shared cache first; only run LLM inference on a miss, then register the signed result. This repo is **design-heavy and early-stage** — the authoritative artifact is the design set in `docs/`, and `poc/` is a single-node Rust proof of concept of the core loop (no P2P/reputation/revocation yet).
 
 ## Design docs are the source of truth — read before changing `poc/`
 
 The PoC deliberately implements a *reduced* version of decisions made in the docs. Before modifying cache/volatility/signing logic, read the relevant section — code comments cite them by number (e.g. `設計メモ §4`):
 
-- `docs/Winny_Type_Semantic_Cache_Architecture.md` — the clean **implementation spec** (v1.0). Start here.
-- `docs/Winny_Type_Semantic_Cache_信頼性設計メモ.md` — competitive analysis + reliability design (§1–9: threats, Sybil defense, volatility tags, copyright).
-- `docs/Winny_Type_Semantic_Cache_AI_Concept.md` — original concept/philosophy.
+- `docs/Architecture.md` — the clean **implementation spec** (v1.0). Start here.
+- `docs/信頼性設計メモ.md` — competitive analysis + reliability design (§1–9: threats, Sybil defense, volatility tags, copyright).
+- `docs/AI_Concept.md` — original concept/philosophy.
 - `docs/PoC_Design_Notes.md` — the PoC's own design notes (scope, modules, dependencies, build, deliberate simplifications).
 - `docs/PoC_Test_Results.md` — the PoC's test items, results, and end-to-end demo (verification report for `poc/`).
 - `docs/Roadmap.md` — the implementation roadmap (stages S1–S7, gates, and current status), extracted from Architecture.md §13.2. This is the single place tracking implementation progress — update its status column when a stage's state changes, not Architecture.md.
