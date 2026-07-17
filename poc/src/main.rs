@@ -117,9 +117,20 @@ fn main() {
             hits += 1;
             println!(
                 "  -> HIT  (sim={:.3}, {us} us) 元の質問: \"{}\"",
-                r.similarity, entry.question
+                r.similarity, entry.core.question_norm
             );
-            println!("     A: {}", clip_utf8(&entry.answer, 80));
+            // S2.5 形式は回答平文を保存しない(コアは facts のみ。設計ノート §1)。
+            // 受信側再合成は未実装のため、ヒット時は facts を提示する。
+            println!(
+                "     facts: {}件{}",
+                entry.core.facts.len(),
+                entry
+                    .core
+                    .facts
+                    .first()
+                    .map(|t| format!(" 例: ({}, {}, {})", t.s, t.p, clip_utf8(&t.o, 40)))
+                    .unwrap_or_else(|| " (facts なし)".to_string())
+            );
             continue;
         }
         misses += 1;
@@ -131,7 +142,7 @@ fn main() {
         let answer = agent.ask(q);
         // 判定パイプライン(Architecture §7): L0 → L2 → 案4 → §10.1確定 を1本で通す
         let report = pipeline::judge_entry(q, &answer, agent.as_ref());
-        let e = cache.register_judged_entry(
+        let e = cache.register(
             q,
             &answer,
             &report.volatility,
@@ -195,18 +206,29 @@ fn main() {
         cache.size()
     );
 
-    // 改ざん検知デモ: 保存済みエントリのanswerを書き換えて再読込
+    // 改ざん検知デモ(S2.5 形式): <entry_id>.entry の core_b64(base64 の
+    // 正準バイト列)を復号 → 1バイト反転 → 再base64 して書き戻す。
+    // ロード手順3(sha256(core_bytes) とファイル名の照合)で drop される
+    // (ハッシュ=改ざん検知。署名を壊す経路は手順4=偽造防止が担う。設計メモ §4)。
     println!("\n--- 改ざん検知デモ ---");
     if let Ok(rd) = fs::read_dir(store) {
         for entry in rd.filter_map(|e| e.ok()) {
             let path = entry.path();
-            if path.extension().map(|e| e == "json").unwrap_or(false) {
+            if path.extension().map(|e| e == "entry").unwrap_or(false) {
+                use base64::engine::general_purpose::STANDARD as B64;
+                use base64::Engine;
                 let data = fs::read_to_string(&path).expect("改ざんデモ: エントリ読込に失敗");
                 let mut j: serde_json::Value =
                     serde_json::from_str(&data).expect("改ざんデモ: JSONパースに失敗");
-                if let Some(answer) = j.get("answer").and_then(|a| a.as_str()) {
-                    let tampered = format!("【毒入り】{answer}");
-                    j["answer"] = serde_json::Value::String(tampered);
+                if let Some(b64) = j.get("core_b64").and_then(|v| v.as_str()) {
+                    let mut core_bytes =
+                        B64.decode(b64).expect("改ざんデモ: core_b64 の復号に失敗");
+                    // 中間の1バイトを書き換える(question_norm 等の内容改ざんを模す)。
+                    // XOR 反転は自己逆元(--keep で2回実行すると元に戻る)ため、
+                    // +1 の非自己逆元な書換にする
+                    let mid = core_bytes.len() / 2;
+                    core_bytes[mid] = core_bytes[mid].wrapping_add(1);
+                    j["core_b64"] = serde_json::Value::String(B64.encode(&core_bytes));
                 }
                 fs::write(&path, serde_json::to_string_pretty(&j).unwrap())
                     .expect("改ざんデモ: エントリ書き込みに失敗");

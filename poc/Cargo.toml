@@ -14,6 +14,11 @@ sha2 = "0.10"
 hex = "0.4"
 rand = "0.8"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# S2.5 エントリ形式(docs/S2.5_エントリ形式設計.md):
+#   base64: .entry エンベロープ内の core_b64(正準バイト列の不透明ブロブ)用。MIT/Apache-2.0
+#   unicode-normalization: lp_str の NFC 正規化(§3)用。MIT/Apache-2.0
+base64 = "0.22"
+unicode-normalization = "0.1"
 ed25519-dalek = { version = "2", optional = true, features = ["rand_core"] }
 
 [features]

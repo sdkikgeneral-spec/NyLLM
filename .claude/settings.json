@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git push *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(cargo test *)"
     ]
   },
   "enabledPlugins": {
