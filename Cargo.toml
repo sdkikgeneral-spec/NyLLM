@@ -1,0 +1,43 @@
+# NyLLM ルートワークスペース(S3 Company Phase1)。
+#
+# - members: 実装本体のクレート群。
+#     src/core     … Rustコアライブラリ + nyllm-node デーモン(S3設計ノート §9)
+#     src/registry … 発見専用の軽量axumサービス(S3設計ノート §2, §9。
+#                    信頼判断を一切持たない=発見のみ。§0・§8★最重要)
+# - exclude: poc/ は S1/S2 の参照実装として凍結された独立 Cargo プロジェクト
+#   (Roadmap §0[C])。ワークスペースに巻き込まず、従来どおり
+#   `cd poc && cargo build` で単独ビルド可能な状態を維持する。
+[workspace]
+resolver = "2"
+members = ["src/core", "src/registry"]
+exclude = ["poc"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+
+# 共有依存(バージョンをワークスペース側で一元管理する。
+# 各クレートは `dep = { workspace = true }` で参照する)
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
+rand = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# S2.5 エントリ形式(docs/S2.5_エントリ形式設計.md):
+#   base64: .entry エンベロープ内の core_b64(正準バイト列の不透明ブロブ)用。MIT/Apache-2.0
+#   unicode-normalization: lp_str の NFC 正規化(§3)用。MIT/Apache-2.0
+base64 = "0.22"
+unicode-normalization = "0.1"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+# S3 Company Phase1(docs/S3_Company_Phase1_社内多ノード共有設計.md §2, §9, §11-4):
+#   axum:    ノードデーモン(UI向け/ノード間の2系統)+ レジストリの HTTP サーバ。MIT
+#   tokio:   axum のランタイム。MIT
+#   reqwest: HttpTransport / RegistryClient の HTTP クライアント(§11-4 採用:
+#            Phase1 は axum+JSON。TLS なしの最小構成 = 社内LAN前提)。MIT/Apache-2.0
+# いずれも AGPL-3.0(および将来の Apache-2.0 移行)と両立するライセンス。
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }
+axum = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"] }

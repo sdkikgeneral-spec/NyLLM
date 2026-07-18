@@ -1,0 +1,58 @@
+# NyLLM コアクレート(src/core)。
+#
+# poc/(S1/S2 参照実装・凍結)から S2.5 適用済み実装を移植したライブラリクレート
+# (S3設計ノート §9「移植」)+ S3 新規モジュール
+# (node/policy/wire/transport/sync/registry_client/daemon)+
+# バイナリ nyllm-node(main.rs。--mode company|private 起動・配線)。
+#
+# モジュールファイルは src/core/ 直下に置く(設計ノート §9 のレイアウト)ため、
+# [lib] path でクレートルートを lib.rs に明示する。
+[package]
+name = "nyllm-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "nyllm_core"
+path = "lib.rs"
+
+# ノードデーモン(S3設計ノート §6, §9)。HTTP実配線を含むため feature "http" が必要。
+[[bin]]
+name = "nyllm-node"
+path = "main.rs"
+required-features = ["http"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
+chrono = { workspace = true }
+base64 = { workspace = true }
+unicode-normalization = { workspace = true }
+ed25519-dalek = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+
+# テスト専用依存。nyllm-registry はレジストリ統合テスト
+# (src/tests/test_registry_integration.rs)が「本物のレジストリハンドラ」を
+# 実HTTPで起動するために使う。production 依存ではない(レジストリ→core の
+# 依存ゼロ不変条件はそのまま。逆方向かつ dev のみ)。
+[dev-dependencies]
+nyllm-registry = { path = "../registry" }
+
+[features]
+# S3 でデーモンが本体機能になったため http は既定 on(cargo build で全体が立つ)。
+# 重量級のHTTPスタックは feature ゲート配下に置く方針(CLAUDE.md)は維持しており、
+# --no-default-features で純ロジック(cache/entry/wire/sync/InMemoryTransport)のみの
+# 軽量ビルドが可能(マルチノードのプロセス内テストは http なしで全て動く)。
+default = ["http"]
+# HTTP実配線: HttpTransport / RegistryClient / daemon(axum) / nyllm-node バイナリ。
+http = ["dep:tokio", "dep:axum", "dep:reqwest"]
+# 実Ed25519署名(ed25519-dalek)。既定はDummySigner(依存ゼロのMACプレースホルダ)。
+ed25519 = ["dep:ed25519-dalek"]
+# 実Embedding経路の拡張点(骨格のみ、未配線)。既定はMockEmbedder。
+onnx = []

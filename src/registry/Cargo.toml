@@ -1,0 +1,32 @@
+# NyLLM レジストリ(src/registry)— 発見専用の軽量 axum サービス。
+#
+# S3設計ノート §2 / §9 / §8-1(★最重要):
+#   - 責務は (1) ノード参加/離脱管理 (2) ピア一覧提供 (3) CA公開鍵/CRL配布 のみ。
+#   - エントリデータは一切通さない・保持しない。
+#   - 信頼判断を一切持たない: node_cert は不透明な JSON として中継するだけで
+#     検証しない(検証は各ノードの CertPolicy が自律的に行う)。この分離により
+#     nyllm-core への依存もゼロ(型すら共有しない=「レジストリにある=信頼」を
+#     コード構造としても焼き込まない)。
+[package]
+name = "nyllm-registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# ルータ構築(build_router)をライブラリとして公開する。目的はテスト容易性のみ:
+# nyllm-core の統合テスト(dev-dependency)が「本物のレジストリハンドラ」を
+# 実HTTPで起動するため。モジュールファイルはクレートディレクトリ直下に置く
+# (src/core と同じレイアウト)ため path を明示する。
+[lib]
+name = "nyllm_registry"
+path = "lib.rs"
+
+[[bin]]
+name = "nyllm-registry"
+path = "main.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
