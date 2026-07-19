@@ -28,14 +28,17 @@ use crate::embedder::Embedder;
 use crate::entry::
 {
     encode_core, entry_id, nfc, parse_core, question_key, CacheEntry, EntryEnvelope,
-    ImmutableCore, MutableState, Provenance, Tier, SCHEMA_VER,
+    ImmutableCore, MutableState, Provenance, Tier, Trust, SCHEMA_VER,
 };
+use crate::policy::TrustPolicy;
 use crate::signer::Signer;
 use crate::triples::{predicate_class, FactTriple, TripleDecomposition};
+use crate::trust::prefer_candidate;
 use crate::volatility::{finalize_volatility, share_gate, VolatilityAssessment};
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use chrono::Utc;
+use std::collections::BTreeSet;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
@@ -283,19 +286,37 @@ impl SemanticCache
         self.lookup_filtered(question, &|_| true)
     }
 
-    // 検索(除外フィルタフック付き)。
+    // 検索(除外フィルタフック付き。trust 重みなし = 従来挙動)。
+    // S4 実測ゲート既定(重み0)と完全に同じ順位になる後方互換ラッパ。
+    pub fn lookup_filtered(
+        &self,
+        question: &str,
+        include: &dyn Fn(&CacheEntry) -> bool,
+    ) -> LookupResult<'_>
+    {
+        self.lookup_filtered_weighted(question, include, 0.0)
+    }
+
+    // 検索(除外フィルタフック+trust タイブレーク重み付き)。
     // include が false を返したエントリは候補から除外する。これは S3設計ノート
     // §8-4「grow-only 前提を検索に焼き込むな」の失効フィルタフックであり、
     // Phase1 では呼び出し側(sync.rs)が失効ポリシー(常にpass)+ TTL検索除外
     // (§7。物理削除はしない)をここに差し込む。Phase2 の revocation は
     // このフックの中身を差し替えるだけで載る。
     //
-    // 複数版併存時の選好(S3設計ノート §4): 類似度が同点の場合は created の
-    // 新しい版を選ぶ(Phase1 の消費側選好 = created 新しい順)。
-    pub fn lookup_filtered(
+    // 複数版併存時の選好(S3設計ノート §4 / S4設計ノート §4・§9-2):
+    // 類似度が同点の場合の選好は trust::prefer_candidate(純粋関数)に委譲する。
+    //   - 主軸: created の新しい版(S3 §4 の従来選好そのまま)
+    //   - trust_weight > 0(実測ゲート有効)のときのみ、created も同点の候補間で
+    //     層1 trust(independent_agreement / supporting_versions)をタイブレーク
+    //     として加味する。trust_weight = 0.0(既定)では trust 値がどうであれ
+    //     従来と同一の順位になる(S4 §4 実測ゲート。層1は助言のみ=順位の
+    //     タイブレーク以外の意思決定には一切使わない)。
+    pub fn lookup_filtered_weighted(
         &self,
         question: &str,
         include: &dyn Fn(&CacheEntry) -> bool,
+        trust_weight: f64,
     ) -> LookupResult<'_>
     {
         if self.entries.is_empty()
@@ -317,7 +338,16 @@ impl SemanticCache
                 None => sim > 0.0,
                 Some((bi, bs)) =>
                 {
-                    sim > bs || (sim == bs && self.entries[bi].core.created < e.core.created)
+                    let b = &self.entries[bi];
+                    sim > bs
+                        || (sim == bs
+                            && prefer_candidate(
+                                &e.core.created,
+                                e.state.trust.as_ref(),
+                                &b.core.created,
+                                b.state.trust.as_ref(),
+                                trust_weight,
+                            ))
                 }
             };
             if replace
@@ -479,6 +509,80 @@ impl SemanticCache
         let state_data =
             serde_json::to_string_pretty(&e.state).expect("可変状態のシリアライズに失敗");
         fs::write(state_path, state_data).expect("可変状態の書き込みに失敗");
+    }
+
+    // (旧 save_state は削除: S4 trust 再導出専用のヘルパーだったが、案Bで
+    //  trust が非永続化(serde(skip)・起動時再導出)になり呼び出し元が消えた。
+    //  state.json の書き込みは登録/取込時の save が担う)
+
+    // ------------------------------------------------------------------
+    // S4 層1: trust 再導出(S4設計ノート §3)
+    // ------------------------------------------------------------------
+
+    // 指定 question_key バンドル(同一 question_key × 異 entry_id の版集合。
+    // S3 §4 複数版併存)の層1 trust をローカル再導出し、バンドル内全版の
+    // mutable_state.trust へメモリ上でのみ格納する(save_state は呼ばない)。
+    //
+    //   - trust は非永続化(MutableState.trust は serde(skip)。案B):
+    //     起動時に NodeService::new が recompute_trust_all で必ず再導出する
+    //     ため、state.json へ書いてもロード時に読まれず上書きされる冗長 I/O
+    //     にしかならない。よってここでは書き込まない。
+    //
+    //   - 入力はこのノードがローカル保持する版集合の facts のみ(S3 全複製方針。
+    //     S4 §2(e))。送信者側 trust 値は一切参照しない(そもそも Transfer は
+    //     trust を運ばない。S4 §3「各ノードがローカル算出」)。
+    //   - 算出は policy(5点目の差し替え点)経由。Phase1 既定 =
+    //     Layer1TrustPolicy(純粋関数 trust::compute_layer1_trust へ委譲)。
+    //   - trust は署名対象外・entry_id 対象外の mutable_state 側であり、
+    //     この更新は entry_id / author_sig に一切影響しない(S4 §7)。
+    //   - 戻り値は算出された trust(バンドルが空 = 該当 question_key の版が
+    //     1つも無い場合は None)。
+    pub fn recompute_trust_for_bundle(
+        &mut self,
+        question_key: &str,
+        policy: &dyn TrustPolicy,
+    ) -> Option<Trust>
+    {
+        let indices: Vec<usize> = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.question_key == question_key)
+            .map(|(i, _)| i)
+            .collect();
+        if indices.is_empty()
+        {
+            return None;
+        }
+        let trust = {
+            let version_facts: Vec<&[FactTriple]> = indices
+                .iter()
+                .map(|&i| self.entries[i].core.facts.as_slice())
+                .collect();
+            policy.compute(&version_facts)
+        };
+        for &i in &indices
+        {
+            // メモリ上の更新のみ。trust は serde(skip) で state.json に
+            // 含まれないため、save_state を呼んでもディスク内容は変わらない
+            // (=冗長 I/O)。よってここでは永続化しない(案B)。
+            self.entries[i].state.trust = Some(trust.clone());
+        }
+        Some(trust)
+    }
+
+    // 全 question_key バンドルの trust を再導出する(ロード直後の初期化用。
+    // S4 §9-5「trust再導出は judge_entry/取込時の再導出と同時」の起動時版:
+    // ディスク上の state.json に残る過去の trust 値も、現在ローカルに揃っている
+    // 版集合から算出し直した値で上書きする = 常に自ノードの再導出値のみを保持)。
+    pub fn recompute_trust_all(&mut self, policy: &dyn TrustPolicy)
+    {
+        let keys: BTreeSet<String> =
+            self.entries.iter().map(|e| e.question_key.clone()).collect();
+        for k in keys
+        {
+            self.recompute_trust_for_bundle(&k, policy);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -706,7 +810,9 @@ impl SemanticCache
                     {
                         entry.state.volatility_confidence = disk.volatility_confidence;
                         entry.state.volatility_evidence = disk.volatility_evidence;
-                        entry.state.trust = disk.trust;
+                        // trust は serde(skip) で state.json に存在しない
+                        // (導出状態。起動時に NodeService::new の
+                        //  recompute_trust_all が再導出する。案B)ため復元しない。
                         entry.state.witness_sigs = disk.witness_sigs;
                         entry.state.anchor_proof = disk.anchor_proof;
                         entry.state.stake = disk.stake;

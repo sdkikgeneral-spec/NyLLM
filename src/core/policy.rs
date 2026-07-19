@@ -1,4 +1,5 @@
-// ポリシー差し替え点(S3設計ノート §8「焼き込むと作り直しになる箇所」の4点)。
+// ポリシー差し替え点(S3設計ノート §8「焼き込むと作り直しになる箇所」の4点
+// + S4設計ノート §7 が追加する5点目)。
 //
 // Phase1 実装を trait のデフォルト実装体として提供し、Phase2 で差し替え可能な
 // フックとして固定する:
@@ -10,6 +11,9 @@
 //                                   Phase2=エントリ単位revocationへ差替
 //   (4) 発見層     DiscoveryPolicy  Phase1=レジストリ由来のピア表(PeerTable)
 //                                   Phase2=DHTへ差替
+//   (5) trust算出  TrustPolicy      Phase1=層1 Jaccard平均のみ・ランキング重み0
+//                                   (Layer1TrustPolicy)
+//                                   Phase2=witness独立性検証つき一致率へ差替(S4 §7)
 //
 // ★差し替え「不能」なもの(§8-2): author_sig 検証コア(ハッシュ照合 +
 // Signer::verify。cache::verify_envelope 内)はポリシーの対象外であり、
@@ -21,8 +25,11 @@
 // CertPolicy(=各ノードの自律検証)が判断する。「レジストリに載っている=信頼」
 // はどの実装にも焼き込まない。
 
+use crate::entry::Trust;
 use crate::node::{cert_allows_mode, node_id, verify_node_cert, Crl, Mode, NodeCert, PeerInfo};
 use crate::signer::Signer;
+use crate::triples::FactTriple;
+use crate::trust::compute_layer1_trust;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -348,6 +355,79 @@ impl DiscoveryPolicy for PeerTable
 }
 
 // ------------------------------------------------------------------
+// (5) trust算出ポリシー(S4 層1。5点目の差し替え点)
+// ------------------------------------------------------------------
+
+pub trait TrustPolicy: Send + Sync
+{
+    fn name(&self) -> &str;
+
+    // 同一 question_key の版集合の facts から層1 trust を算出する(S4 §3)。
+    // 入力は自ノードがローカル保持する版の facts のみであり、送信者側の
+    // trust 値は入力に存在しない(各ノードがローカル再導出する。S4 §3・§6)。
+    // Phase1 実装は純粋関数 trust::compute_layer1_trust への委譲。
+    // Phase2 はこの trait 実装を「witness独立性検証つき一致率」へ差し替えるが、
+    // 算出コア(Jaccard平均)自体は不変のまま再利用できる(S4 §7・§8)。
+    fn compute(&self, version_facts: &[&[FactTriple]]) -> Trust;
+
+    // 検索ランキングへの trust 寄与重み(実測ゲート。S4 §4)。
+    // 既定 0.0 = 無効: trust の算出・保存・表示は常に行うが、ランキング順位は
+    // 一切変えない。社内実測で一致率に意味のある分散が確認された時点で
+    // 有効化する(同一モデル問題 = 全版一致で無信号のまま有効化しない。S4 §5)。
+    fn ranking_weight(&self) -> f64
+    {
+        0.0
+    }
+}
+
+// Phase1 実装: 層1(Jaccard平均)のみ・ランキング重みは構成値(既定 0.0)。
+pub struct Layer1TrustPolicy
+{
+    weight: f64,
+}
+
+impl Layer1TrustPolicy
+{
+    // 既定 = 実測ゲート無効(重み0)。
+    pub fn new() -> Self
+    {
+        Self { weight: 0.0 }
+    }
+
+    // 実測ゲート有効化用(社内実測で分散確認後 / テストの順位寄与検証用)。
+    pub fn with_weight(weight: f64) -> Self
+    {
+        Self { weight }
+    }
+}
+
+impl Default for Layer1TrustPolicy
+{
+    fn default() -> Self
+    {
+        Self::new()
+    }
+}
+
+impl TrustPolicy for Layer1TrustPolicy
+{
+    fn name(&self) -> &str
+    {
+        "layer1-jaccard(Phase1)"
+    }
+
+    fn compute(&self, version_facts: &[&[FactTriple]]) -> Trust
+    {
+        compute_layer1_trust(version_facts)
+    }
+
+    fn ranking_weight(&self) -> f64
+    {
+        self.weight
+    }
+}
+
+// ------------------------------------------------------------------
 // 束(NodeService への注入単位)
 // ------------------------------------------------------------------
 
@@ -358,11 +438,14 @@ pub struct Policies
     pub cert: Arc<dyn CertPolicy>,
     pub time: Arc<dyn TimePolicy>,
     pub revocation: Arc<dyn RevocationPolicy>,
+    // S4 層1: trust算出+ランキング重み(5点目の差し替え点。既定=重み0)。
+    pub trust: Arc<dyn TrustPolicy>,
 }
 
 impl Policies
 {
-    // Phase1 既定の組(cert のみ注入。時刻=スキップ、失効=常にpass)。
+    // Phase1 既定の組(cert のみ注入。時刻=スキップ、失効=常にpass、
+    // trust=層1 Jaccard・ランキング重み0)。
     pub fn phase1(cert: Arc<dyn CertPolicy>) -> Self
     {
         Self
@@ -370,6 +453,7 @@ impl Policies
             cert,
             time: Arc::new(OrgClockTimePolicy),
             revocation: Arc::new(NoRevocationPolicy),
+            trust: Arc::new(Layer1TrustPolicy::new()),
         }
     }
 }

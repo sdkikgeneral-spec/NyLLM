@@ -23,7 +23,7 @@ use super::common::{
 };
 use crate::node::{Mode, PeerInfo};
 use crate::policy::{
-    CertPolicy, NoRevocationPolicy, Policies, RevocationPolicy, TimePolicy,
+    CertPolicy, Layer1TrustPolicy, NoRevocationPolicy, Policies, RevocationPolicy, TimePolicy,
 };
 use crate::sync::{Delivery, NodeConfig, NodeService};
 use crate::transport::InMemoryNetwork;
@@ -109,6 +109,7 @@ fn rejecting_time_policy_drops_ingest()
             cert,
             time,
             revocation: Arc::new(NoRevocationPolicy),
+            trust: Arc::new(Layer1TrustPolicy::new()),
         };
         let delivery = Delivery
         {
@@ -170,6 +171,7 @@ fn revocation_policy_excludes_entry_from_search_without_deletion()
         cert,
         time: Arc::new(crate::policy::OrgClockTimePolicy),
         revocation: revocation.clone(),
+        trust: Arc::new(Layer1TrustPolicy::new()),
     };
     let delivery = Delivery
     {
@@ -243,6 +245,7 @@ fn revocation_policy_blocks_anti_entropy_pull()
         cert,
         time: Arc::new(crate::policy::OrgClockTimePolicy),
         revocation: revocation.clone(),
+        trust: Arc::new(Layer1TrustPolicy::new()),
     };
     let peer_table = Arc::new(crate::policy::PeerTable::new());
     peer_table.set_peers(vec![PeerInfo

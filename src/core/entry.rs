@@ -103,8 +103,29 @@ pub struct ImmutableCore
 // (過剰設計回避=「動く的撃ち」の回避)。今確定するのは「可変状態側・
 // 署名対象外」という配置と署名境界のみ。Phase2 で中身を埋めても
 // entry_id は不変のまま「追加」で完結する(§0.1)。
+
+// S4 層1(エントリ内在信頼度)。S4設計ノート §1 が S2.5 §10-8 の空宣言原則の
+// 明示的な例外として Phase1 で先行定義する2フィールドのみを持つ
+// (Architecture §8冒頭[補完]・Roadmap §0対応表S4行が既に認めていた例外の具体化)。
+//
+//   - mutable_state 側(署名対象外・entry_id 対象外)の助言値であり、値が
+//     どう変わっても entry_id / author_sig には一切影響しない(§7 署名境界不変)。
+//   - 各ノードが trust::compute_layer1_trust でローカル再導出した値のみを
+//     格納する。送信者側の trust 値は一切参照しない(そもそも Transfer =
+//     EntryEnvelope は core+署名のみで trust を運ばない。§3・§6)。
+//   - 層2/層3 のフィールド(author_reputation / revoked)はここに定義しない
+//     (Phase2 のまま。載る場所=本構造体内の未定義フィールドとして確保済み。§7)。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Trust {}
+pub struct Trust
+{
+    // 同一 question_key の版集合における事実トリプルの一致率(0..1)。
+    // 案A: 正規化トリプル集合の版ペア間 Jaccard 平均(S4 §3・§9-1)。
+    #[serde(default)]
+    pub independent_agreement: f64,
+    // 一致率計算の対象になった版数(facts 分解成功版数。S4 §3)。
+    #[serde(default)]
+    pub supporting_versions: u32,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WitnessSig {}
@@ -129,8 +150,13 @@ pub struct MutableState
     pub tier_operative: Tier,
     pub local_embedder_id: String, // このノードが索引に使った embedder(変更時は全再embedding)
     // --- Phase2 空スロット(型のみ確保。Phase1では None/空) ---
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub trust: Option<Trust>, // S4
+    // trust は導出状態: 起動時に NodeService::new が recompute_trust_all で
+    // ローカル版集合から必ず再導出するため、state.json へ永続化しない
+    // (書いてもロード時に読まれず上書きされる冗長 I/O にしかならない。案B)。
+    // 署名対象外・entry_id 対象外・助言のみ(既定重み0)なので非永続化は
+    // 不変条件・脅威モデルに影響しない。
+    #[serde(skip)]
+    pub trust: Option<Trust>, // S4(メモリのみ保持・ロード時再導出)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub witness_sigs: Vec<WitnessSig>, // S3(社内は共通時計で代替=空)
     #[serde(default, skip_serializing_if = "Option::is_none")]

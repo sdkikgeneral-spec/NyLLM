@@ -17,7 +17,7 @@
 use crate::agent::{Agent, AgentError};
 use crate::cache::{IngestOutcome, IngestReport, SemanticCache, LOCAL_THRESHOLD};
 use crate::embedder::Embedder;
-use crate::entry::{CacheEntry, Tier};
+use crate::entry::{CacheEntry, Tier, Trust};
 use crate::node::{node_id as node_id_of_pub, Mode, NodeIdentity};
 use crate::pipeline::judge_entry;
 use crate::policy::{DiscoveryPolicy, Policies};
@@ -138,6 +138,9 @@ pub struct EntryDetail
     pub tier_operative: Tier,
     pub author_pub: String,
     pub author_node_id: String, // author_pub から再計算(§1 追跡可能性)
+    // S4 層1: UI信頼度表示用の参考情報(S4設計ノート §4-2。助言のみ。
+    // 自ノードがローカル再導出した値であり、送信者の主張値ではない)。
+    pub trust: Option<Trust>,
 }
 
 pub struct NodeService
@@ -186,7 +189,7 @@ impl NodeService
             identity.signer.clone(),
             config.threshold,
         ));
-        Ok(Self
+        let svc = Self
         {
             config,
             identity,
@@ -195,7 +198,15 @@ impl NodeService
             policies,
             delivery,
             cache,
-        })
+        };
+        // S4 層1: ロード済み全バンドルの trust をローカル再導出する(起動時初期化)。
+        // state.json に残る過去の算出値も、現在ローカルに揃っている版集合から
+        // 算出し直した値で上書きする(常に自ノードの再導出値のみを保持。S4 §3)。
+        svc.cache
+            .lock()
+            .unwrap()
+            .recompute_trust_all(svc.policies.trust.as_ref());
+        Ok(svc)
     }
 
     // ------------------------------------------------------------------
@@ -275,6 +286,7 @@ impl NodeService
             tier_operative: e.state.tier_operative,
             author_pub: e.author_pub.clone(),
             author_node_id: node_id_of_pub(&e.author_pub),
+            trust: e.state.trust.clone(),
         })
     }
 
@@ -292,7 +304,13 @@ impl NodeService
         let best_sim;
         {
             let cache = self.cache.lock().unwrap();
-            let r = cache.lookup_filtered(question, &|e| self.is_searchable(e, now));
+            // S4 層1: trust のランキング寄与は実測ゲート(TrustPolicy::ranking_weight。
+            // 既定 0.0 = 無効)の背後。重み0では従来と完全に同一の順位になる(§4)。
+            let r = cache.lookup_filtered_weighted(
+                question,
+                &|e| self.is_searchable(e, now),
+                self.policies.trust.ranking_weight(),
+            );
             if let Some(e) = r.entry
             {
                 return Ok(AskResult
@@ -334,6 +352,9 @@ impl NodeService
             created = e.core.created.clone();
             shareable = e.state.shareable;
             tier = e.state.tier_operative;
+            // S4 層1: 新版が加わった question_key バンドルの trust をローカル再導出
+            // (judge/登録と同時。S4 §9-5)。署名対象外の mutable_state のみ更新。
+            cache.recompute_trust_for_bundle(&question_key, self.policies.trust.as_ref());
         }
 
         // 配送announce(共有ゲート通過エントリのみ・best-effort。§3)
@@ -495,7 +516,19 @@ impl NodeService
             .map_err(|e| format!("時刻検証失敗: {e}"))?;
 
         // 手順10: 冪等マージ(同一entry_idスキップ・同一question_key異IDは併存)
-        Ok(cache.insert_verified(entry))
+        let report = cache.insert_verified(entry);
+
+        // S4 層1: trust再導出ステップ(S3 §3手順9=運用値再導出への相乗り。S4 §3)。
+        // 新版が実際に加わったバンドルのみ、ローカル保持の版集合から
+        // independent_agreement / supporting_versions を再導出する。
+        // 送信者側の trust 値は構造的に存在しない(Transfer は core+署名のみ)ため、
+        // 「送信者値不信任」は入力レベルで保証される。冪等スキップ(Duplicate)時は
+        // 版集合が変わらないので再計算しない(算出は決定的で値も変わらない)。
+        if report.outcome == IngestOutcome::Added
+        {
+            cache.recompute_trust_for_bundle(&report.question_key, self.policies.trust.as_ref());
+        }
+        Ok(report)
     }
 
     // GET /wire/entry/{entry_id} 相当。供出条件は AND:

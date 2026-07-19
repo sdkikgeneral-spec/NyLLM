@@ -25,6 +25,12 @@
 //   registry_client レジストリ join / peers / ca 取得(feature "http")
 //   daemon          axum サーバ2系統(UI向け /v1/* + ノード間 /wire/*。feature "http")
 // バイナリ nyllm-node(main.rs)が --mode company|private で配線する(§6)。
+//
+// S4 新規モジュール(docs/S4_Company_Phase1_層1内在信頼度先行設計.md):
+//   trust           層1 内在信頼度の算出コア(純粋関数。版ペア間Jaccard平均=案A)。
+//                   実運用パスは policy::TrustPolicy(5点目の差し替え点。既定=
+//                   ランキング重み0)経由で呼ぶ。層1は助言のみ — 共有ゲート
+//                   (shareable)には一切配線しない(S4 §4)。
 
 pub mod agent;
 pub mod cache;
@@ -37,6 +43,7 @@ pub mod signer;
 pub mod sync;
 pub mod transport;
 pub mod triples;
+pub mod trust;
 pub mod volatility;
 pub mod wire;
 
@@ -77,6 +84,9 @@ mod tests
     // ポリシー差し替えフック(TimePolicy/RevocationPolicy)の実効性テスト(§8-3/§8-4)。
     #[path = "../../tests/test_policy_hooks.rs"]
     mod test_policy_hooks;
+    // S4 層1 内在信頼度(trust 算出コア/policy hook/再導出フック/ランキング配線。§8)。
+    #[path = "../../tests/test_trust.rs"]
+    mod test_trust;
     #[path = "../../tests/bench_lookup.rs"]
     mod bench_lookup;
     #[cfg(feature = "http")]

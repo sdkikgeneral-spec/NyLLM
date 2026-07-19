@@ -1,10 +1,26 @@
 # S4(Company Phase1)層1内在信頼度先行設計 — trust空スロットの層1充填
 
-> ステータス: **先行設計(docs)・実装は別段階(未着手)**(2026-07-17。3層評判([信頼性設計メモ.md](./信頼性設計メモ.md) §6)のうち**層1(エントリ内在信頼度=トリプル一致率)のみ**を対象とし、層2(局所EigenTrust・ID生成PoW・スラッシング)・層3(消費側抜き打ち再推論)はPublic Phase2に据え置く。本ノート自体は `poc/src/` および将来の `src/core/` のコードを一切含まない。実装は本ノート承認後、かつ **S3(Company Phase1多ノード共有)の実装確定後**、project-leader 経由で **poc-core-dev**(実装)に割り当てられる別段階であり、その際は下記§2「S3依存前提」を必ず差分再検証する)
+> ステータス: **実装完了(2026-07-19)**(先行設計は2026-07-17作成。3層評判([信頼性設計メモ.md](./信頼性設計メモ.md) §6)のうち**層1(エントリ内在信頼度=トリプル一致率)のみ**を対象とし、層2(局所EigenTrust・ID生成PoW・スラッシング)・層3(消費側抜き打ち再推論)はPublic Phase2に据え置く — この範囲自体は実装後も不変。実装は下記§2「S3依存前提」の差分再検証を経て2026-07-19に `src/core` へ完了した(前提差分・実装時調整は下記「改訂注記(2026-07-19)」を参照)。進捗の一次情報は [Roadmap.md](./Roadmap.md) §1(S4=**一部着手**。ゲート「毒注入テストに耐える」は層2/層3前提のため未達・ゲート定義不変))
 > 出典: [Architecture.md](./Architecture.md) §6「キャッシュエントリ データモデル」(`trust` ブロック: `independent_agreement`/`supporting_versions`/`author_reputation`/`revoked`)/ §6 [補完]差異表(S2.5では`trust`はmutable_state側・Phase1では空)/ §8.1「全体思想」・§8.2「3層評判」/ §8.5「鮮度と詐称防止」/ §8冒頭[補完]「Phase帰属」(層1相当のみPhase1先行しうる)、[信頼性設計メモ.md](./信頼性設計メモ.md) §6「シビル攻撃対策」(推奨アーキテクチャ:検証主軸の3層・トレードオフ「slow型の更新」「局所評判の非一貫性」)/ §9「主戦場の段階展開」、[S2.5_エントリ形式設計.md](./S2.5_エントリ形式設計.md) §1・§2(immutable_core/mutable_state分離・`trust`空スロット)/ §6「保存レイアウトとload/verify手順」/ §13「実装後メモ/既知の妥協点」、[S3_Company_Phase1_社内多ノード共有設計.md](./S3_Company_Phase1_社内多ノード共有設計.md) 全体(特に §3「受信側の検証手順」手順9・§4「一貫性と重複排除」・§5「検索」・§8「Public Phase2への非破壊性」・§11「要判断点」)、[Roadmap.md](./Roadmap.md) §0「主戦場の段階展開」対応表(S4行)/ §2「S4 評判・独立検証」節
 > 前提ドキュメント: [Architecture.md](./Architecture.md) / [信頼性設計メモ.md](./信頼性設計メモ.md) / [S2.5_エントリ形式設計.md](./S2.5_エントリ形式設計.md) / [S3_Company_Phase1_社内多ノード共有設計.md](./S3_Company_Phase1_社内多ノード共有設計.md) / [Roadmap.md](./Roadmap.md)
-> 対象実装(承認後・S3実装確定後の別段階): `src/core/` の `pipeline.rs::judge_entry` 相当への「trust再導出ステップ」追加、`entry.rs`(または同等モジュール)の `MutableState.trust` 充填、検索ランキングへの助言フック、UI表示用データの提供。S3自体がまだ「確定設計(docs)・実装は別段階(未着手)」であるため、本ノートの対象実装はS3実装完了よりさらに後になる、前倒しの設計検討であることに留意する(執筆時点)。**追記(2026-07-18)**: S3実装は確定した(→ [Roadmap.md](./Roadmap.md) §2「S3 P2P化」節)。これにより本ノートの実装前提のうち「S3実装確定後」は満たされたが、§2「S3依存前提」の差分再検証は未実施であり、S4着手時の最初の作業とする。S4自体の進捗は「未着手」のまま(一次情報は [Roadmap.md](./Roadmap.md) §1)。
+> 対象実装(承認後・S3実装確定後の別段階): `src/core/` の `pipeline.rs::judge_entry` 相当への「trust再導出ステップ」追加、`entry.rs`(または同等モジュール)の `MutableState.trust` 充填、検索ランキングへの助言フック、UI表示用データの提供。S3自体がまだ「確定設計(docs)・実装は別段階(未着手)」であるため、本ノートの対象実装はS3実装完了よりさらに後になる、前倒しの設計検討であることに留意する(執筆時点)。**追記(2026-07-18)**: S3実装は確定した(→ [Roadmap.md](./Roadmap.md) §2「S3 P2P化」節)。これにより本ノートの実装前提のうち「S3実装確定後」は満たされたが、§2「S3依存前提」の差分再検証は未実施であり、S4着手時の最初の作業とする。S4自体の進捗は「未着手」のまま(一次情報は [Roadmap.md](./Roadmap.md) §1)。**追記(2026-07-19)**: §2差分再検証を実施の上、実装+テスト+ベンチ+脅威モデルレビューまで完了した。実装先・調整の詳細は下記「改訂注記(2026-07-19)」を参照。S4は「一部着手」へ更新(一次情報は [Roadmap.md](./Roadmap.md) §1)。
 > 作成日: 2026-07-17
+
+---
+
+## 改訂注記(2026-07-19)
+
+本ノートは2026-07-17時点(S3実装未着手・§2依存前提は仮リスト)で書かれた先行設計である。S3実装確定(2026-07-18)を受けて§2「S3依存前提」の差分再検証を実施し、2026-07-19に実装+テスト+ベンチ+脅威モデルレビューまで完了した。以下、前提差分と実装時の主な調整を記録する。**原文の各§は判断の経緯として書き換えずに残し**、本注記は「§Xはこう調整された」と指す形式にとどめる。
+
+- **§2差分再検証の結果**: (a)複数版併存・(b)`question_key`版束ね・(c)`mutable_state.trust`空スロット・(e)全複製ローカル検索・(f)検索時の複数版候補化フックは、いずれもS3実装どおり成立を確認した。**調整点は(d)のみ**: S3 §3手順9は実装では`judge_entry`再実行そのものではなく `cache.rs::derive_operative_state`(単一エントリを入力とする純粋関数)として実現されていたため、版集合を必要とするtrust再導出はこの単一エントリ関数へは相乗りできない。そこでtrust再導出は「版集合を持つ `SemanticCache` のバンドル再計算メソッド(`recompute_trust_for_bundle`)」として実装し、受信(`ingest_transfer` のAdded直後)・登録(askでの新規登録直後)・起動(`recompute_trust_all`)の各タイミングに相乗りさせた。§3の設計意図(**受信側ローカル再導出・送信者値不信任** = Transfer/`EntryEnvelope` はcore+署名のみで `trust` を運ばない)は保持している。
+- **§9要判断点の帰結**: 全5点とも推奨案どおり採用した(1=案A: 正規化トリプル集合の版ペア間Jaccard平均 / 2=`created`新しい順を主軸+trustをタイブレーク / 3=実測ゲート既定重み0(有効化しきい値は社内実測待ちのまま) / 4=`created`による簡易鮮度重み / 5=trust再導出は受信・登録・起動の各処理と同時=同期実行)。
+- **追加規約(§3案Aへの追補・明文化)**: facts分解が成功している版が0または1(=一致率のペアが組めない)場合は `independent_agreement = 0.0` とする。「独立の裏づけがまだ取れていない」状態を、全版一致(1.0)と保守的に区別するための規約である。
+- **実装先**: `src/core/trust.rs`(新規。算出コア `compute_layer1_trust` は純粋関数)/ `entry.rs`(`Trust`型の `independent_agreement`/`supporting_versions` 2フィールド充填。`author_reputation`/`revoked` は引き続き未定義=Phase2)/ `policy.rs`(`TrustPolicy` trait+`Layer1TrustPolicy`。既定重み0。§7の方針どおり、S3 §8の4点に続く**5点目のポリシー差し替え点**)/ `cache.rs`(`recompute_trust_for_bundle`/`recompute_trust_all`・`lookup_filtered_weighted`)/ `sync.rs`(受信・登録・起動時の再導出フック+`EntryDetail.trust`=API/UI表示用)/ `lib.rs`(配線)。**共有ゲート(`shareable`)には一切配線していない**(§4どおり)。
+- **テスト(§8観点+CLAUDE.md規則4)**: `src/tests/test_trust.rs`(新規15件)+ `test_policy_hooks.rs` へのtrustフィールド追補。`cargo test --workspace` = **111 passed / 0 failed / 4 ignored**(default)、`--features ed25519` でも **111 passed / 0 failed**。
+- **ベンチ(§9-5「hot pathへの負荷実測」)**: release実測で、算出コア `compute_layer1_trust` はO(版数²)、k=2:約8µs / k=10:約74µs / k=50:約510µs / k=200:約5.2ms。`recompute_trust_for_bundle`(算出+バンドル全版のstate.json書き込み)はI/O支配で k=2:約0.47ms / k=10:約2.1ms / k=50:約11.6ms。典型バンドル(k=2〜5版)では約0.5〜1.1msであり、§9-5の採用案(同期実行)は現行規模で妥当。バンドル全版のstate.json再書き込み(O(版数)のI/O)は、代替案(非同期バックグラウンド再計算)への切替の将来判断材料として [Roadmap.md](./Roadmap.md) §3に記録した。
+- **脅威モデルレビュー(threat-model-reviewer、2026-07-19)**: 重点6項目すべて問題なし。**低**=自作自演(単一著者による多版再注入)で `supporting_versions`/`independent_agreement` を水増しできる(重複版dedup未実装)。これは§1「非目標」(witness独立性検証を行わない)・§5「同一モデル問題」として本ノートが据え置いた限界そのものであり、現状は重み0=助言のみ+組織PKIによるシビル不在前提で実害は封じ込め済み。**実測ゲート有効化またはPhase2 witness実装より前に「重複版dedup or witness時系列」を閉じること**を有効化チェックリストに紐づける([Roadmap.md](./Roadmap.md) §3)。**情報**=Phase2でpolicy hookをwitness独立性検証付きへ差し替える際、`TrustPolicy::compute` の出力域(0..1・非NaN)を契約として明文化することを推奨(§7「policy hook差し替えの予行」に対応)。
+- **案B=trust非永続化(2026-07-19、上記ベンチのI/O支配を受けた後続最適化)**: `entry.rs` の `MutableState.trust` を `#[serde(skip)]` 化し、`cache.rs::recompute_trust_for_bundle` の `save_state` を除去した。trust は起動時 `NodeService::new`→`recompute_trust_all` でローカル版集合から再導出される**導出状態**であり、`state.json` への永続化は冗長I/Oだった。§4実測ゲート・「まとめ」の「trust の算出・**保存**・表示」の「保存」は**メモリ保持(プロセス内 `MutableState.trust`)**を指し、案B以降 `state.json` へは非永続化である(disk永続化と誤読しないこと)。脅威モデル面では不変条件4点維持・新規攻撃面なし(むしろ `state.json` 改竄による trust 吊り上げ経路が消え安全側)。両ビルド **112 passed / 0 failed / 4 ignored**。
+- **§9-5「再導出タイミング」への案Bの効果**: 採用案(judge・取込・起動と同時=同期実行)の各再導出は、案Bにより算出のみ(I/Oなし)となり安価になった(release実測: `recompute_trust_for_bundle` k=2:約465µs→約2.3µs / k=10:約2.1ms→約15.9µs / k=50:約11.6ms→約0.15ms。I/Oが全体の約99%を占めていた)。§9-5の代替案(非同期バックグラウンド再計算)への切替は不要になった([Roadmap.md](./Roadmap.md) §3該当行も解消済みに更新)。
 
 ---
 
@@ -202,3 +218,5 @@ over-engineering回避線 = 「witness/評判/ステーク/抜き打ち再推論
 poc-core-dev(judge_entryへのtrust再導出ステップ追加+ランキング/UIフック)へ
 実装割り当て(+テスト、CLAUDE.md規則4)。実装は本ノート承認後かつS3実装確定後の別段階。
 ```
+
+**追記(2026-07-19)**: 上記チェーンは完了した(差分再検証→実装→テスト→ベンチ→脅威モデルレビュー。→冒頭「改訂注記(2026-07-19)」)。残るのは実測ゲート有効化判断の社内実測(§4・§9-3)であり、有効化前に「重複版dedup or witness時系列」を閉じること([Roadmap.md](./Roadmap.md) §3)。

@@ -195,11 +195,11 @@ Miss
 
 ### 5.4 評判層 (Reputation)
 
-§8 に詳述。3層(エントリ内在信頼度 / ノード評判 / 消費側最終防衛)。全レイヤを横断し、hot pathには集計値を、cold pathにはスラッシング/貢献記録を提供する。 **[補完]** 本層の実装の大半はPublic Phase2繰り延べ(層1相当のみPhase1で先行しうる。→§8冒頭[補完]・§9 [補完])。
+§8 に詳述。3層(エントリ内在信頼度 / ノード評判 / 消費側最終防衛)。全レイヤを横断し、hot pathには集計値を、cold pathにはスラッシング/貢献記録を提供する。 **[補完]** 本層の実装の大半はPublic Phase2繰り延べ(→§8冒頭[補完]・§9 [補完])。うち**層1(エントリ内在信頼度=`independent_agreement`/`supporting_versions`)のみCompany Phase1で先行実装済み(2026-07-19)**: 作用は検索ランキングのタイブレーク(既定重み0の実測ゲート)+API/UI表示の**助言のみ**であり、共有ゲート(`shareable`)には配線しない。層2(局所EigenTrust等)・層3(抜き打ち再推論)はPhase2据え置きのまま。一次情報は [Roadmap.md](./Roadmap.md) §2 S4節・[S4_Company_Phase1_層1内在信頼度先行設計.md](./S4_Company_Phase1_層1内在信頼度先行設計.md)(冒頭「改訂注記(2026-07-19)」)。
 
 ### 5.5 失効 (revocation) 機構
 
-**[補完]** 本機構の実装はPublic Phase2繰り延べ(→§9 [補完]、[Roadmap.md](./Roadmap.md) §0対応表 S5)。Phase1ではドメイン分離タグ `nyllm/revocation/v1` の予約のみ([S2.5_エントリ形式設計.md](./S2.5_エントリ形式設計.md) §11)。機構の設計自体は以下のとおり有効なまま保持する。
+**[補完]** 本機構の実装はPublic Phase2繰り延べ(→§9 [補完]、[Roadmap.md](./Roadmap.md) §0対応表 S5)。Phase1ではドメイン分離タグ `nyllm/revocation/v1` の予約のみ([S2.5_エントリ形式設計.md](./S2.5_エントリ形式設計.md) §11)。機構の設計自体は以下のとおり有効なまま保持する。伝播・権限モデル・S3残課題(ソース側フィルタ非対称)への解消案を含む先行設計は [S5_Public_Phase2_法的機構先行設計.md](./S5_Public_Phase2_法的機構先行設計.md) §3を参照(先行設計・実装未着手。段階定義・ゲートは不変)。
 
 | 項目 | 仕様 |
 |---|---|
@@ -283,7 +283,7 @@ Miss
 | `entry_id` | `hash(正規化質問群 + Agent + Model)` | `hex(sha256(core_bytes))`。`core_bytes` は immutable_core(question_norm・facts・provenance・created・initial_volatility_class・initial_tier)を `encode_core()` で正準化した、serde非依存の長さ接頭辞バイナリ。検索・重複排除・版束ねは entry_id とは別キーの `question_key = hex(sha256("nyllm/qkey/v1\n" \|\| lp_str(fold(question))))` に二層分離し、content-basedに切り出している |
 | `embedding_pca64` | PCA圧縮済みベクトルを保存 | **保存しない**。各ノードがロード時に `question_norm` から再計算する(改良案C)。本節のPCA保存前提は将来の圧縮索引に関する記述として残すが、現行実装はこれを持たない |
 | `author_sig` | `sign(facts+claimed_date+provenance)`(署名対象がフィールドの部分集合) | `Signer::sign_bytes(core_bytes)` — immutable_core 全体の正準バイト列に対する署名。未署名フィールド経由の改竄が verify を素通りする経路を塞ぐため、部分フィールド署名ではなく core_bytes 全体署名に変更。DummySigner は HMAC-SHA256(旧 `sha256(secret‖payload)` から変更) |
-| 全体構造 | フラットな単一構造(`volatility`/`trust`/`witness_sigs` 等が同階層) | **immutable_core(署名・entry_id対象)/ mutable_state(署名対象外・受信側で再導出)に分離**。`volatility.confidence`/`evidence`/`shareable`/`tier_operative`/`trust`/`witness_sigs`/`anchor_proof`/`stake` は mutable_state 側。`claimed_date` は core 側の `created`(RFC3339・Z)に対応。Phase2向けの `trust`/`witness_sigs`/`anchor_proof`/`stake` は型のみ宣言し、Phase1では空 |
+| 全体構造 | フラットな単一構造(`volatility`/`trust`/`witness_sigs` 等が同階層) | **immutable_core(署名・entry_id対象)/ mutable_state(署名対象外・受信側で再導出)に分離**。`volatility.confidence`/`evidence`/`shareable`/`tier_operative`/`trust`/`witness_sigs`/`anchor_proof`/`stake` は mutable_state 側。`claimed_date` は core 側の `created`(RFC3339・Z)に対応。Phase2向けの `trust`/`witness_sigs`/`anchor_proof`/`stake` は型のみ宣言し、Phase1では空(**[補完]** うち `trust` の `independent_agreement`/`supporting_versions` の2フィールドのみ、S4層1先行実装〔2026-07-19〕によりCompany Phase1で充填済み。mutable_state側=署名対象外・各ノードがローカル再導出し転送では運ばない、という配置は不変。`author_reputation`/`revoked` は引き続き空=Phase2。→§8冒頭[補完]・[Roadmap.md](./Roadmap.md) §2 S4節) |
 | `network` | `"network": "public"` をエントリに保持 | **coreに含めない**。ネットワークモードはノード属性であり、coreに焼き込むと同一事実がモード違いだけで別entry_idに重複するため([S2.5_エントリ形式設計.md](./S2.5_エントリ形式設計.md) §1) |
 | `prompt_hash` / `regurgitation_check` | provenanceに必須記録 | **Phase2まで不採用**(coreに含めない)。将来 `schema_ver` を上げて追加する(同ノート§1) |
 
@@ -368,6 +368,8 @@ L0で大半を高精度に足切りし、生き残りだけL2で精査。NPU/GPU
 
 **[補完] Phase帰属**: 本節の機構のうち、witness署名・層2ノード評判(局所EigenTrust・ID生成PoW)・層3抜き打ち・スラッシング・投票重み付けの実装はPublic Phase2に繰り延べる(Company Phase1では層1=トリプル一致率相当のみ先行しうる。→§9 [補完]、[Roadmap.md](./Roadmap.md) §0対応表 S4)。機構の設計自体は有効なまま保持する。
 
+**[補完] 層1の実装状況(2026-07-19)**: 層1はCompany Phase1で`src/core`へ先行実装完了した。一致率は正規化トリプル集合の**版ペア間Jaccard平均**(同一`question_key`の版集合を独立生成回答群とみなす)。§8.2の「witness署名時系列による独立性検証」はPhase2据え置きのため未実装であり、その代わりの保守的規約として、facts分解が成功している版が0または1(一致率のペアが組めない)場合は `independent_agreement = 0.0` とし「独立の裏づけ未取得」を全版一致(1.0)と区別する。`trust`は各ノードがローカルで再導出し、転送(Transfer/エンベロープ)では運ばない(送信者値不信任)。作用は助言のみ(検索ランキング既定重み0+API/UI表示)で、共有ゲートには配線しない。算出ロジックはポリシー差し替え点(policy hook)の背後にあり、Phase2はwitness独立性検証付きの算出へ差し替える。詳細は [Roadmap.md](./Roadmap.md) §2 S4節・[S4_Company_Phase1_層1内在信頼度先行設計.md](./S4_Company_Phase1_層1内在信頼度先行設計.md)(冒頭「改訂注記(2026-07-19)」)。
+
 ### 8.1 全体思想
 
 **投票を「真偽の決定」から「探索の優先度ヒント」へ格下げする。** シビル攻撃は多数決を攻撃するもの → 真偽を多数決で決めない。事実型限定という線引き(§7)がそのまま土台になる。事実は独立検証で決められるため。
@@ -433,7 +435,7 @@ L0で大半を高精度に足切りし、生き残りだけL2で精査。NPU/GPU
 
 **UI原則**: 実行アイコンをモード別に分離(AI Public / AI Company / AI Private)。利用者が現在モードを常に意識でき、誤操作で機密がPublicへ漏れない。モードは推論時判定でなく**起動時選択**。
 
-**[補完] 主戦場の段階展開(Company Phase1先行 → Public Phase2後続)**: オーナー採用決定(2026-07-17)により、上表のPublic/Company/Privateは同時並行整備ではなく**Company層をPhase1として先行実装し、Public層をPhase2として後続させる段階展開**を取る。両フェーズ共通の背骨(trait 3本/エントリ形式の不変コア/triples/volatility/共有ゲート/検索)はPhase1から確定・実装するが、Public層でのみ必須となる機構(witness+アンカー二層、評判+ステーク+外部照合裁定、revocation+regurgitation)はPhase2に繰り延べる。ただし省略は「削除」ではなく「未実装スロット」として扱い、エントリ形式には `witness_sigs` / `anchor_proof` / `stake` / `trust` をCompany Phase1の時点から空(optional)の可変状態フィールドとして型で確保する。幻覚パリティ(§10関連)は概念(Tierタグ)をPhase1から導入するが、強制機構(Tier-H裁定)はPhase2から。アンカー二層・ステーク経済はPhase2に全繰り延べつつ、対応する可変フィールドの空スロットのみ先に確保する。詳細・採用経緯は[設計レビュー_2026-07.md](./設計レビュー_2026-07.md) §4.7、一次設計判断は[信頼性設計メモ.md](./信頼性設計メモ.md) §9、段階と既存S1〜S7ステージの対応は[Roadmap.md](./Roadmap.md)を参照。
+**[補完] 主戦場の段階展開(Company Phase1先行 → Public Phase2後続)**: オーナー採用決定(2026-07-17)により、上表のPublic/Company/Privateは同時並行整備ではなく**Company層をPhase1として先行実装し、Public層をPhase2として後続させる段階展開**を取る。両フェーズ共通の背骨(trait 3本/エントリ形式の不変コア/triples/volatility/共有ゲート/検索)はPhase1から確定・実装するが、Public層でのみ必須となる機構(witness+アンカー二層、評判+ステーク+外部照合裁定、revocation+regurgitation)はPhase2に繰り延べる。ただし省略は「削除」ではなく「未実装スロット」として扱い、エントリ形式には `witness_sigs` / `anchor_proof` / `stake` / `trust` をCompany Phase1の時点から空(optional)の可変状態フィールドとして型で確保する(**[補完]** うち `trust` の `independent_agreement`/`supporting_versions` 2フィールドのみ、S4層1先行実装〔2026-07-19〕によりPhase1で充填済み。→§8冒頭[補完]・§6差異表)。幻覚パリティ(§10関連)は概念(Tierタグ)をPhase1から導入するが、強制機構(Tier-H裁定)はPhase2から。アンカー二層・ステーク経済はPhase2に全繰り延べつつ、対応する可変フィールドの空スロットのみ先に確保する。詳細・採用経緯は[設計レビュー_2026-07.md](./設計レビュー_2026-07.md) §4.7、一次設計判断は[信頼性設計メモ.md](./信頼性設計メモ.md) §9、段階と既存S1〜S7ステージの対応は[Roadmap.md](./Roadmap.md)を参照。
 
 ---
 
@@ -488,6 +490,8 @@ L0で大半を高精度に足切りし、生き残りだけL2で精査。NPU/GPU
 | R5 Agent規約マトリクス | Public層は再配布明示許可ライセンスのモデルに限定。商用API出力はCompany/Privateに留める | 各社規約(競合モデル学習禁止条項)への抵触 |
 | R6 ドキュメント衛生 | 適法用途の明記+AUP。開発者のグレー用途示唆を排除 | Grokster inducement / Winny幇助論 |
 | R7 法人格分離・段階公開 | リファレンス実装は財団/OSS。フィルタと失効が実証されるまでPublic層は招待制/小規模 | 開発者個人を「運営者」に見せない |
+
+**[補完]**(2026-07-19、R2/R3/R4先行設計ノート) R2(regurgitationフィルタ)/R3(revocation)/R4(出所記録)の3本柱について、Public Phase2専属の先行設計(骨子+論点構造化)を [S5_Public_Phase2_法的機構先行設計.md](./S5_Public_Phase2_法的機構先行設計.md) として追加した。実装未着手・S1〜S7の段階定義/ゲート/進捗ステータスは不変。**法的助言ではない。Public層公開前に専門弁護士レビュー必須**(本節冒頭の免責と同一)。
 
 **[補完]**(2026-07-19、R5未整理事項) ローカル推論モデル(`gemma3` / `glm4` 等、Ollama経由)自体の利用規約・モデルライセンス(出力の再配布・共有条件)は、現行R5では**未整理**である(現行R5は「商用API出力はCompany/Privateに留める」という主旨のみで、ローカル推論モデルの規約は扱っていない)。Ollama経由エントリの他ノードとの共有(S3の多ノード共有パイプラインへの合流=Company層、および将来のPublic層共有)を本格化する前に、本マトリクスへ「ローカル推論モデル」行を追加し確認が必要。一次記載は[実装スペック(2026-07-18)](./superpowers/specs/2026-07-18-selectable-inference-backend-design.md)末尾の追記(2026-07-19)。**法的助言ではない。Public層公開前に専門弁護士レビュー必須**(本節冒頭の免責と同一であり、本補完はそれを薄めるものではない)。
 
