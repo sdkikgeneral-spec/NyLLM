@@ -190,6 +190,8 @@ Miss
 | Public層のモデル選定 | **再配布を明示許可するライセンスのモデルに限定**。商用API出力はCompany/Privateに留める(§11 規約マトリクス) |
 | 独立性 | 独立検証のため、可能なら異なるAgent/時期で複数生成し一致率を測る |
 | 自己申告 | 登録時に「単独回答可能か」「事実型か」「volatility」を申告。ただし**決定でなく一票**(§7) |
+| 実装状況(選択可能な推論先) **[補完]** | `OllamaAgent` 実装済み(`feature = "ollama"`、`src/core/agent.rs` + `src/core/agent/ollama_agent.rs`、`ureq`経由、既定モデル `gemma3`)。バックエンドは `AgentConfig`(環境変数 `NYLLM_AGENT_BACKEND=mock\|ollama` 等)で選択。`Agent::ask` は `Result<String, AgentError>` 化され、Agent失敗時はjudge/登録/announceを行わない。一次記載: [実装スペック(2026-07-18、改訂注記あり)](./superpowers/specs/2026-07-18-selectable-inference-backend-design.md) |
+| provenance追跡 **[補完]** | `OllamaAgent::name()` は `ollama:<モデル名>` を返し、provenanceからモデル単位まで追跡可能(§11 R4「出所の完全記録」と整合) |
 
 ### 5.4 評判層 (Reputation)
 
@@ -486,6 +488,8 @@ L0で大半を高精度に足切りし、生き残りだけL2で精査。NPU/GPU
 | R5 Agent規約マトリクス | Public層は再配布明示許可ライセンスのモデルに限定。商用API出力はCompany/Privateに留める | 各社規約(競合モデル学習禁止条項)への抵触 |
 | R6 ドキュメント衛生 | 適法用途の明記+AUP。開発者のグレー用途示唆を排除 | Grokster inducement / Winny幇助論 |
 | R7 法人格分離・段階公開 | リファレンス実装は財団/OSS。フィルタと失効が実証されるまでPublic層は招待制/小規模 | 開発者個人を「運営者」に見せない |
+
+**[補完]**(2026-07-19、R5未整理事項) ローカル推論モデル(`gemma3` / `glm4` 等、Ollama経由)自体の利用規約・モデルライセンス(出力の再配布・共有条件)は、現行R5では**未整理**である(現行R5は「商用API出力はCompany/Privateに留める」という主旨のみで、ローカル推論モデルの規約は扱っていない)。Ollama経由エントリの他ノードとの共有(S3の多ノード共有パイプラインへの合流=Company層、および将来のPublic層共有)を本格化する前に、本マトリクスへ「ローカル推論モデル」行を追加し確認が必要。一次記載は[実装スペック(2026-07-18)](./superpowers/specs/2026-07-18-selectable-inference-backend-design.md)末尾の追記(2026-07-19)。**法的助言ではない。Public層公開前に専門弁護士レビュー必須**(本節冒頭の免責と同一であり、本補完はそれを薄めるものではない)。
 
 ---
 

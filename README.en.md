@@ -8,7 +8,7 @@ The same questions get thrown at LLMs all over the world, and every time a GPU r
 
 `Semantic Cache` `P2P / DHT` `NPU-first` `Local First AI` `Distributed Knowledge` `Sybil-resistant Reputation`
 
-**Status: 🚧 Design phase complete / PoC S1 (single-node minimal loop) and S2 (judgment pipeline) complete, S3 (P2P) not yet started** — there is no live network yet. No overselling.
+**Status: 🚧 Design phase complete / S1 (single-node minimal loop), S2 (judgment pipeline), and S3 (multi-node sharing = reduced Company-Phase1 scope) complete** — there is no public live network yet. No overselling.
 
 ---
 
@@ -69,6 +69,7 @@ flowchart TD
 
 - **Read (hot path)**: every query. Lightweight — just looks up precomputed trust aggregates.
 - **Write (cold path)**: only on a miss. Full evaluation, triple decomposition, and signing are concentrated here.
+- **The inference backend is swappable**: the Agent used on a miss is selectable via configuration, and an Ollama-based local inference path is already implemented in `src/core` (mock by default; a local LLM can be plugged in with no external API key).
 
 ## Design edges
 
@@ -96,7 +97,7 @@ The authoritative source for stage definitions, gates, and measured results is [
 |---|---|---|
 | S1 | PoC minimal loop (embedding search → Agent on miss → signed registration, single node) | ✅ Done |
 | S2 | Decision pipeline (L0/L2 gates + triple decomposition + volatility tags) | ✅ Done |
-| S3 | P2P (DHT, witness signatures, multi-version coexistence) | ⬜ |
+| S3 | P2P (DHT, witness signatures, multi-version coexistence) | ✅ Done (reduced Company-Phase1 scope; full P2P — DHT and witness — is re-expanded in Public Phase2) |
 | S4 | Reputation & independent verification (3-layer reputation, slashing, surprise verification) | ⬜ |
 | S5 | Legal mechanisms (regurgitation filter, revocation, provenance records) | ⬜ |
 | S6 | Mode separation + UI | ⬜ |

@@ -8,7 +8,7 @@
 
 `Semantic Cache` `P2P / DHT` `NPU-first` `Local First AI` `Distributed Knowledge` `Sybil-resistant Reputation`
 
-**Status: 🚧 設計フェーズ完了 / PoC S1(単一ノード最小ループ)・S2(判定パイプライン)完了、S3(P2P化)着手前** — まだ動くネットワークはありません。誇大広告なし。
+**Status: 🚧 設計フェーズ完了 / S1(単一ノード最小ループ)・S2(判定パイプライン)・S3(多ノード共有=Company Phase1縮約範囲)完了** — 公開の稼働ネットワークはまだありません。誇大広告なし。
 
 ---
 
@@ -69,6 +69,7 @@ flowchart TD
 
 - **読み取り (hot path)**: 毎クエリ。計算済みの信頼度集計を引くだけで軽量。
 - **書き込み (cold path)**: ミス時のみ。フル判定・トリプル分解・署名はここに集約。
+- **推論先は差し替え可能**: ミス時のAgent(推論先)は設定で選択でき、Ollamaベースのローカル推論経路を `src/core` に実装済み(既定はモック。ローカルLLMは外部APIキー不要で差し込める)。
 
 ## 設計上の尖り
 
@@ -96,7 +97,7 @@ flowchart TD
 |---|---|---|
 | S1 | PoC最小ループ (Embedding検索→ミス時Agent→署名付き登録、単一ノード) | ✅ 完了 |
 | S2 | 判定パイプライン (L0/L2ゲート+トリプル分解+揮発性タグ) | ✅ 完了 |
-| S3 | P2P化 (DHT・witness署名・複数版併存) | ⬜ |
+| S3 | P2P化 (DHT・witness署名・複数版併存) | ✅ 完了(Company Phase1縮約範囲。フルP2P〔DHT・witness〕はPublic Phase2で再拡張) |
 | S4 | 評判・独立検証 (3層評判・スラッシング・抜き打ち検証) | ⬜ |
 | S5 | 法的機構 (regurgitationフィルタ・revocation・出所記録) | ⬜ |
 | S6 | モード分離+UI | ⬜ |
