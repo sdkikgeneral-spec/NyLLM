@@ -324,8 +324,17 @@ impl SemanticCache
             return LookupResult { entry: None, similarity: 0.0 };
         }
         let q = self.embedder.encode(question);
-        // (index, similarity) の最良候補。閾値未満でも最良値は報告する(観測用)
-        let mut best: Option<(usize, f32)> = None;
+        // エントリ別実効しきい値(effective_threshold: 共有由来=SHARED_THRESHOLD)
+        // による2本立ての最良候補追跡:
+        //   best_any … しきい値不問の全体最良(ミス時の観測用類似度報告。従来挙動)
+        //   best_ok  … 自身の実効しきい値を満たした候補の中での最良(=ヒット判定)
+        // 共有由来候補は sim が最大でも自身の実効しきい値(0.90)未満なら不採用とし、
+        // sim がより低くても実効しきい値を満たすローカル候補があればそちらを返す
+        // (精度優先・汚染回避。Architecture §5.1 / 信頼性設計メモ §2 脅威A)。
+        // タイブレーク(prefer_candidate)・除外フック(include)とは独立で、
+        // 最後のしきい値到達判定にのみ効く。
+        let mut best_any: Option<(usize, f32)> = None;
+        let mut best_ok: Option<(usize, f32)> = None;
         for (i, e) in self.entries.iter().enumerate()
         {
             if !include(e)
@@ -333,37 +342,63 @@ impl SemanticCache
                 continue; // 失効/TTL等の検索除外(物理削除はしない)
             }
             let sim = dot(&e.embedding, &q);
-            let replace = match best
+            // 既存の最良候補 cur より (i, sim) が優先されるか(従来と同一の比較則)
+            let beats = |cur: &Option<(usize, f32)>| -> bool
             {
-                None => sim > 0.0,
-                Some((bi, bs)) =>
+                match *cur
                 {
-                    let b = &self.entries[bi];
-                    sim > bs
-                        || (sim == bs
-                            && prefer_candidate(
-                                &e.core.created,
-                                e.state.trust.as_ref(),
-                                &b.core.created,
-                                b.state.trust.as_ref(),
-                                trust_weight,
-                            ))
+                    None => sim > 0.0,
+                    Some((bi, bs)) =>
+                    {
+                        let b = &self.entries[bi];
+                        sim > bs
+                            || (sim == bs
+                                && prefer_candidate(
+                                    &e.core.created,
+                                    e.state.trust.as_ref(),
+                                    &b.core.created,
+                                    b.state.trust.as_ref(),
+                                    trust_weight,
+                                ))
+                    }
                 }
             };
-            if replace
+            if beats(&best_any)
             {
-                best = Some((i, sim));
+                best_any = Some((i, sim));
+            }
+            if sim >= self.effective_threshold(e) && beats(&best_ok)
+            {
+                best_ok = Some((i, sim));
             }
         }
-        match best
+        match (best_ok, best_any)
         {
-            Some((i, sim)) if sim >= self.threshold => LookupResult
+            (Some((i, sim)), _) => LookupResult
             {
                 entry: Some(&self.entries[i]),
                 similarity: sim,
             },
-            Some((_, sim)) => LookupResult { entry: None, similarity: sim },
-            None => LookupResult { entry: None, similarity: 0.0 },
+            (None, Some((_, sim))) => LookupResult { entry: None, similarity: sim },
+            (None, None) => LookupResult { entry: None, similarity: 0.0 },
+        }
+    }
+
+    // エントリ別の実効類似度しきい値(Architecture §5.1 / §7[補完]既知の穴②)。
+    //   - 共有由来(他ノードから受信 = state.origin_received)のエントリは
+    //     SHARED_THRESHOLD(0.90)。共有側の誤ヒット(脅威A: 他人の別意図質問に
+    //     当たる)は偽陰性より遥かに有害なため精度優先(信頼性設計メモ §2)。
+    //     呼び出し側設定の self.threshold の方が厳しい場合はそちらを維持(max)。
+    //   - 自ノード登録エントリは従来どおり self.threshold(既定 LOCAL_THRESHOLD=0.80)。
+    fn effective_threshold(&self, e: &CacheEntry) -> f32
+    {
+        if e.state.origin_received
+        {
+            self.threshold.max(SHARED_THRESHOLD)
+        }
+        else
+        {
+            self.threshold
         }
     }
 
@@ -468,6 +503,7 @@ impl SemanticCache
             share_reason: share_reason.to_string(),
             tier_operative: core.initial_tier,
             local_embedder_id: self.embedder.name().to_string(),
+            origin_received: false, // 自ノード登録 = ローカル由来(検索は self.threshold)
             trust: None,
             witness_sigs: Vec::new(),
             anchor_proof: None,
@@ -663,6 +699,10 @@ impl SemanticCache
             share_reason: derived.share_reason.clone(),
             tier_operative: derived.tier_operative,
             local_embedder_id: self.embedder.name().to_string(),
+            // 検証経路の既定は共有由来(true)。ネット越し ingest はこのまま
+            // 取り込まれ SHARED_THRESHOLD が効く。単一ノードの load() だけが
+            // 手順9で自ノード記録(state.json)の値を上書き採用する。
+            origin_received: true,
             trust: None,
             witness_sigs: Vec::new(),
             anchor_proof: None,
@@ -816,6 +856,12 @@ impl SemanticCache
                         entry.state.witness_sigs = disk.witness_sigs;
                         entry.state.anchor_proof = disk.anchor_proof;
                         entry.state.stake = disk.stake;
+                        // 共有由来フラグは登録/取込時に自ノードが記録した経路事実
+                        // (register=false / insert_verified=true)を復元する。
+                        // 送信者由来の値ではない(state.json はノードローカル。
+                        // S2.5 §13)。旧形式 state.json でフィールド欠落時は
+                        // serde 既定で true(保守側=SHARED_THRESHOLD適用)。
+                        entry.state.origin_received = disk.origin_received;
                         // disk.share_reason / disk.tier_operative /
                         // disk.volatility_class_operative は意図的に破棄(§6 手順9)。
                         // disk.shareable は cap としてのみ消費する(M-2)。

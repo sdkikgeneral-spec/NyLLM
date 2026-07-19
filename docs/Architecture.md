@@ -7,6 +7,7 @@
 > - **[補完]** 関連(本文中の[補完]が参照する後続ドキュメント): [設計レビュー_2026-07.md](./設計レビュー_2026-07.md)(レビュー記録)/ [Roadmap.md](./Roadmap.md)(実装ステップ・進捗の一次情報)/ [S2.5_エントリ形式設計.md](./S2.5_エントリ形式設計.md)(実装済みエントリ形式の一次情報)
 > 位置づけ: 上記のうち AI_Concept.md と信頼性設計メモ.md の設計判断を矛盾なく統合した実装仕様。原則として新規判断は足さない。補完した箇所は本文中に **[補完]** で明示する。
 > **[補完]** 更新注記: 2026-07-17 — 段階展開(§1/§2.2/§9)・S2.5実装差異(§6)・幻覚パリティ統治目標(§7/§8/§10/§12)・技術スタック(§5.6)を[補完]で追補。v1.0の本文構成・節番号は不変。
+> **[補完]** 更新注記: 2026-07-20 — §7[補完]「既知の穴」の②(共有由来エントリへの`SHARED_THRESHOLD`未配線)を配線済みに更新(`origin_received`方式)、§6差異表に同フィールドを追記。v1.0の本文構成・節番号は不変。
 > 免責: §11 の法的事項は法的助言ではない。Public層公開前にIT・著作権専門弁護士のレビュー必須。
 
 ---
@@ -283,7 +284,7 @@ Miss
 | `entry_id` | `hash(正規化質問群 + Agent + Model)` | `hex(sha256(core_bytes))`。`core_bytes` は immutable_core(question_norm・facts・provenance・created・initial_volatility_class・initial_tier)を `encode_core()` で正準化した、serde非依存の長さ接頭辞バイナリ。検索・重複排除・版束ねは entry_id とは別キーの `question_key = hex(sha256("nyllm/qkey/v1\n" \|\| lp_str(fold(question))))` に二層分離し、content-basedに切り出している |
 | `embedding_pca64` | PCA圧縮済みベクトルを保存 | **保存しない**。各ノードがロード時に `question_norm` から再計算する(改良案C)。本節のPCA保存前提は将来の圧縮索引に関する記述として残すが、現行実装はこれを持たない |
 | `author_sig` | `sign(facts+claimed_date+provenance)`(署名対象がフィールドの部分集合) | `Signer::sign_bytes(core_bytes)` — immutable_core 全体の正準バイト列に対する署名。未署名フィールド経由の改竄が verify を素通りする経路を塞ぐため、部分フィールド署名ではなく core_bytes 全体署名に変更。DummySigner は HMAC-SHA256(旧 `sha256(secret‖payload)` から変更) |
-| 全体構造 | フラットな単一構造(`volatility`/`trust`/`witness_sigs` 等が同階層) | **immutable_core(署名・entry_id対象)/ mutable_state(署名対象外・受信側で再導出)に分離**。`volatility.confidence`/`evidence`/`shareable`/`tier_operative`/`trust`/`witness_sigs`/`anchor_proof`/`stake` は mutable_state 側。`claimed_date` は core 側の `created`(RFC3339・Z)に対応。Phase2向けの `trust`/`witness_sigs`/`anchor_proof`/`stake` は型のみ宣言し、Phase1では空(**[補完]** うち `trust` の `independent_agreement`/`supporting_versions` の2フィールドのみ、S4層1先行実装〔2026-07-19〕によりCompany Phase1で充填済み。mutable_state側=署名対象外・各ノードがローカル再導出し転送では運ばない、という配置は不変。`author_reputation`/`revoked` は引き続き空=Phase2。→§8冒頭[補完]・[Roadmap.md](./Roadmap.md) §2 S4節) |
+| 全体構造 | フラットな単一構造(`volatility`/`trust`/`witness_sigs` 等が同階層) | **immutable_core(署名・entry_id対象)/ mutable_state(署名対象外・受信側で再導出)に分離**。`volatility.confidence`/`evidence`/`shareable`/`tier_operative`/`trust`/`witness_sigs`/`anchor_proof`/`stake` は mutable_state 側。`claimed_date` は core 側の `created`(RFC3339・Z)に対応。Phase2向けの `trust`/`witness_sigs`/`anchor_proof`/`stake` は型のみ宣言し、Phase1では空(**[補完]** うち `trust` の `independent_agreement`/`supporting_versions` の2フィールドのみ、S4層1先行実装〔2026-07-19〕によりCompany Phase1で充填済み。mutable_state側=署名対象外・各ノードがローカル再導出し転送では運ばない、という配置は不変。`author_reputation`/`revoked` は引き続き空=Phase2。→§8冒頭[補完]・[Roadmap.md](./Roadmap.md) §2 S4節)(**[補完] 2026-07-20**: `src/core`版の mutable_state には受信由来判別の `origin_received: bool` が追加された — 署名対象外・`EntryEnvelope`〔wire〕非搭載・ノードローカルstateのみ・既定`true`=保守側。共有由来エントリへの `SHARED_THRESHOLD` 適用の判別に使う。→§7[補完]「既知の穴」) |
 | `network` | `"network": "public"` をエントリに保持 | **coreに含めない**。ネットワークモードはノード属性であり、coreに焼き込むと同一事実がモード違いだけで別entry_idに重複するため([S2.5_エントリ形式設計.md](./S2.5_エントリ形式設計.md) §1) |
 | `prompt_hash` / `regurgitation_check` | provenanceに必須記録 | **Phase2まで不採用**(coreに含めない)。将来 `schema_ver` を上げて追加する(同ノート§1) |
 
@@ -358,7 +359,7 @@ L0で大半を高精度に足切りし、生き残りだけL2で精査。NPU/GPU
 | 実装 | 状態 | 残る穴 |
 |---|---|---|
 | `poc/`(S1/S2参照実装・凍結) | `lookup` は shareable・volatility・鮮度を一切見ず、全件を固定しきい値 `LOCAL_THRESHOLD=0.80` で検索。**TTLを強制する機構が存在せず、volatileエントリも永久にヒットし続ける** | 意図的縮約として凍結のまま([PoC_Design_Notes.md](./PoC_Design_Notes.md) §5割り切り4「TTL失効…はP2Pフェーズの課題」・§6次のステップ候補「volatileエントリのTTL失効」に記載済み) |
-| `src/core`(S3実装、2026-07-18) | TTL検索除外を実装済み(`sync.rs::is_searchable`: volatile=1時間/slow=30日/permanent=無期限の検索時フィルタ。物理削除しない) | ①TTL値は暫定でチューニング未対応([Roadmap.md](./Roadmap.md) S3残課題)。②クラス別・出所別の類似度しきい値が未配線 — 検索は一律 `LOCAL_THRESHOLD=0.80` で、共有由来エントリへの `SHARED_THRESHOLD`(τ≥0.9、§5.1)の適用が存在しない |
+| `src/core`(S3実装、2026-07-18。②は2026-07-20配線) | TTL検索除外を実装済み(`sync.rs::is_searchable`: volatile=1時間/slow=30日/permanent=無期限の検索時フィルタ。物理削除しない)。**②共有由来エントリへの `SHARED_THRESHOLD`(τ≥0.9、§5.1)適用は2026-07-20に検索経路へ配線済み(解消)**: 「共有由来(shared-origin)」=**他ノードから受信したエントリ**(自ノード登録は対象外=0.80のまま)と定義し(根拠: [信頼性設計メモ.md](./信頼性設計メモ.md) §2脅威A「他人の別意図質問への誤ヒット」・§5.1「共有用τ≥0.9=精度優先」)、`entry.rs::MutableState.origin_received: bool` で判別する(`#[serde(default)]` 既定`true`=保守側。`register()`=false / `verify_envelope()`=true / `load()`手順9で`state.json`から復元、不在・破損時は`true`=0.90適用に倒す。署名対象外・`EntryEnvelope`〔wire〕非搭載・ノードローカルstateのみ=[S2.5_エントリ形式設計.md](./S2.5_エントリ形式設計.md) §13「stateはノードローカル」と整合)。`cache.rs::effective_threshold` が共有由来=`max(0.80, SHARED_THRESHOLD)`を適用し、lookupは`best_any`(観測用)/`best_ok`(実効しきい値判定)の2本立て。実装+テスト+脅威モデルレビュー完了(ブロッカーなし、2026-07-20) | ①TTL値は暫定でチューニング未対応のまま継続([Roadmap.md](./Roadmap.md) S3残課題・§3該当行)。②は解消済み(左記)。付随の受容済み帰結: `state.json`は非署名のため、ローカルホスト完全掌握時に`origin_received=false`改ざんで0.90→0.80格下げが理論上可能(state=ノードローカル設計の帰結でブロッカーではない。完全性保護〔ローカルMAC等〕の要否は[Roadmap.md](./Roadmap.md) §3の将来課題行) |
 
 既知課題として [Roadmap.md](./Roadmap.md) §3 に登録済み。
 

@@ -149,6 +149,19 @@ pub struct MutableState
     pub share_reason: String,
     pub tier_operative: Tier,
     pub local_embedder_id: String, // このノードが索引に使った embedder(変更時は全再embedding)
+    // 共有由来フラグ(ノードローカル。Architecture §5.1 / §7[補完]既知の穴②):
+    //   true  = このノードがネット越し受信(verify_envelope → insert_verified)で
+    //           取り込んだエントリ(共有由来)。検索時は SHARED_THRESHOLD(0.90。
+    //           誤ヒット=脅威Aの汚染回避で精度優先)を適用する。
+    //   false = 自ノードが register で登録したエントリ。従来どおり検索しきい値
+    //           (既定 LOCAL_THRESHOLD=0.80)を適用する。
+    // 送信者から受信する値ではない(EntryEnvelope に載らない)。受信側が
+    // 「どの経路で取り込んだか」という自ノードの事実を記録するだけであり、
+    // 「送信者値は一切信頼しない」原則(S2.5 §2)とは矛盾しない。
+    // 旧 state.json にフィールドが無い場合・state.json 不在/破損時は保守側
+    // (true = 0.90 適用)に倒す(疑わしきは厳しいしきい値。M-2 cap と同方針)。
+    #[serde(default = "default_origin_received")]
+    pub origin_received: bool,
     // --- Phase2 空スロット(型のみ確保。Phase1では None/空) ---
     // trust は導出状態: 起動時に NodeService::new が recompute_trust_all で
     // ローカル版集合から必ず再導出するため、state.json へ永続化しない
@@ -163,6 +176,14 @@ pub struct MutableState
     pub anchor_proof: Option<AnchorProof>, // S3(設計レビュー §4.2)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stake: Option<Stake>, // S4(設計レビュー §4.3)
+}
+
+// origin_received の serde 既定値(旧 state.json との互換読み込み用)。
+// 由来を確認できないエントリは共有由来とみなし、厳しい方のしきい値
+// (SHARED_THRESHOLD)を適用する = 保守側(疑わしきは共有しない、の検索版)。
+fn default_origin_received() -> bool
+{
+    true
 }
 
 // インメモリのエントリ(コア+コアバイト列+署名+可変状態+ローカルembedding)。

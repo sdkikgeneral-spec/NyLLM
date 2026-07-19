@@ -119,6 +119,10 @@ Transfer 受信時:
 10. question_key 重複排除・冪等マージ(→ §4)して取り込み
 ```
 
+> **実装注記(2026-07-18実装、2026-07-20追記)**: 手順9は実装では `pipeline::judge_entry` の再実行ではなく **`cache.rs::derive_operative_state`(署名済み `core.facts` からの運用値再導出。単一エントリ純粋関数)** として実装された([Roadmap.md](./Roadmap.md) 更新履歴 2026-07-19 の調整点(d))。Transfer は core+署名のみを運び answer 平文を含まない(→ 本節「メッセージ型」の要点)ため、受信側での answer 再分解(`triples.rs::decompose` の再実行)は構造上発生しない。これに伴い、脅威レビュー(2026-07-17)由来の「受信answer再分解に対する `decompose` の入力長・反復回数上限(DoS対策)」は、現行実装では前提が満たされない**条件付き課題へ再スコープ**された(完全対応による解消ではない。受信側が自由文 answer を再分解する設計へ変えた場合に再浮上。詳細は [Roadmap.md](./Roadmap.md) §3 の該当行)。本節および §4 の表中の「手順9の`judge_entry`」表記は、この実装形(`derive_operative_state`)として読み替えること。
+
+> **実装注記(2026-07-20追記、共有由来エントリへのSHARED_THRESHOLD配線)**: 受信経路(`verify_envelope`)で取り込んだエントリは `MutableState.origin_received = true`(共有由来)として記録され、以後の検索では `cache.rs::effective_threshold` により `SHARED_THRESHOLD`(0.90)が適用される(自ノード登録=`register()` は `false`=0.80のまま)。`origin_received` は署名対象外・`EntryEnvelope`(wire)非搭載・ノードローカル state のみであり、本節「メッセージ型」の要点(Transferは`mutable_state`を送らない・送信者値不信任)と整合する(既定`true`=保守側。詳細は [Architecture.md](./Architecture.md) §7[補完]「既知の穴」・[Roadmap.md](./Roadmap.md) §3の該当行・更新履歴2026-07-20)。
+
 上記のうち **手順2のみが S3 新規(組織PKI検証)** であり、手順3〜9 は [S2.5_エントリ形式設計.md](./S2.5_エントリ形式設計.md) §6「保存レイアウトと load/verify 手順」の手順2〜8(`core_bytes = base64_decode(core_b64)` → `sha256_hex` 照合 → `Signer::verify` → `parse_core` → `question_key` 再計算 → `embedding` 再計算 → `judge_entry` 再実行)とそのまま同一である(エンベロープ解析を本ノートの手順1、組織PKI検証を手順2として挿入したため、以降の手順番号がS2.5側から+1ずれている点のみが差異)。手順10(`question_key` 重複排除・冪等マージ)は S2.5 §6「重複排除・バージョニング」に対応する(→ §4)。配送は「S2.5の検証パイプラインをネット越しに呼ぶだけ」という構造であり、単一ノードとマルチノードで検証コードパスを共有する(trait駆動思想の踏襲)。
 
 ### announceの配り方(Phase1最小)

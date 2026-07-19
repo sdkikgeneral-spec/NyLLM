@@ -87,6 +87,9 @@ mod tests
     // S4 層1 内在信頼度(trust 算出コア/policy hook/再導出フック/ランキング配線。§8)。
     #[path = "../../tests/test_trust.rs"]
     mod test_trust;
+    // 共有由来エントリへの SHARED_THRESHOLD 配線(Architecture §5.1/§7 既知の穴②)。
+    #[path = "../../tests/test_shared_threshold.rs"]
+    mod test_shared_threshold;
     #[path = "../../tests/bench_lookup.rs"]
     mod bench_lookup;
     #[cfg(feature = "http")]
