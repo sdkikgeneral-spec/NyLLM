@@ -41,3 +41,8 @@ ed25519-dalek = { version = "2", features = ["rand_core"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }
 axum = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json"] }
+# 選択可能な推論先(設計 2026-07-18 §6): OllamaAgent のHTTPクライアント。
+# 同期・軽量で tokio と干渉しない(Agent::ask は同期 trait のため)。
+# Ollama はローカル(http://localhost)前提なので TLS 機能は外す(default-features off)。
+# ライセンス: MIT — AGPL-3.0 / 将来の Apache-2.0 と両立。feature "ollama" 配下のみ。
+ureq = { version = "2", default-features = false, features = ["json"] }

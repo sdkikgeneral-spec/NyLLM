@@ -42,7 +42,7 @@ fn round_trip_announce_pull_ingest()
     let nodes = build_company_network(&net, &dir, &["a", "b"], &ca);
     let (a, b) = (&nodes[0], &nodes[1]);
 
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     assert!(!res.hit, "初回はミス");
     assert!(res.shareable, "首都エントリは共有可");
     assert!(res.announced_to >= 1, "少なくとも1ピアへ announce 送達");
@@ -65,7 +65,7 @@ fn s3_gate_two_or_more_nodes_share()
     let ca = new_ca(&dir);
     let nodes = build_company_network(&net, &dir, &["a", "b", "c"], &ca);
 
-    let res = nodes[0].svc.ask(SHAREABLE_QUESTION);
+    let res = nodes[0].svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     assert!(res.shareable);
     assert!(res.announced_to >= 2, "2ノード以上(B,C)へ配送");
     for n in &nodes[1..]
@@ -90,7 +90,7 @@ fn receiver_rederives_state_over_network()
     let nodes = build_company_network(&net, &dir, &["a", "b"], &ca);
     let (a, b) = (&nodes[0], &nodes[1]);
 
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     let detail = b.svc.entry_detail(&res.entry_id).expect("B に取り込まれている");
     assert!(detail.shareable);
     assert!(
@@ -117,7 +117,7 @@ fn anti_entropy_recovers_dropped_announce()
 
     // announce を疑似ロスさせる(best-effort の「届かない」)。
     net.set_drop_announces(true);
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     assert_eq!(a.svc.entry_count(), 1);
     assert_eq!(b.svc.entry_count(), 0, "announce 損失で B は未取得");
 
@@ -148,7 +148,7 @@ fn crl_revoked_author_is_dropped_over_network()
 
     // announce をロスさせ、ingest_transfer 単経路を隔離して検証する。
     net.set_drop_announces(true);
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     let transfer = a.svc.handle_entry_request(&res.entry_id).expect("A は共有可を供出");
     assert_eq!(b.svc.entry_count(), 0);
 
@@ -169,7 +169,7 @@ fn reject_all_cert_policy_drops_ingest()
     let ca = new_ca(&dir);
     let nodes = build_company_network(&net, &dir, &["a"], &ca);
     let a = &nodes[0];
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     let transfer = a.svc.handle_entry_request(&res.entry_id).unwrap();
 
     let (identb, _sb) = make_identity(&dir, "b", Mode::Company);
@@ -207,7 +207,7 @@ fn shareable_transfer_from_a(
 {
     let nodes = build_company_network(net, dir, &["a"], ca);
     let a = &nodes[0];
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     assert!(res.shareable, "前提: 首都エントリは共有可");
     let transfer = a.svc.handle_entry_request(&res.entry_id).expect("A は共有可を供出");
     (transfer, res.entry_id.clone(), a.author_pub.clone())
@@ -311,7 +311,7 @@ fn tampered_core_over_network_hash_mismatch()
     let (a, b) = (&nodes[0], &nodes[1]);
 
     net.set_drop_announces(true);
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     let transfer = a.svc.handle_entry_request(&res.entry_id).unwrap();
 
     // core_b64 を1バイト改変 → 期待 entry_id と不一致で drop。
@@ -340,7 +340,7 @@ fn tampered_signature_over_network_bad_signature()
     let (a, b) = (&nodes[0], &nodes[1]);
 
     net.set_drop_announces(true);
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     let transfer = a.svc.handle_entry_request(&res.entry_id).unwrap();
 
     // author_sig の先頭 hex を書き換える(cert/hash は通し、署名だけ壊す)。
@@ -428,7 +428,7 @@ fn private_handlers_are_inert()
     assert_eq!(svc.run_anti_entropy_once().peers_total, 0, "private に同期経路なし");
 
     // private でも UI 経路(ask=ローカル)は動くが、配送 announce は0。
-    let res = svc.ask(SHAREABLE_QUESTION);
+    let res = svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     assert_eq!(res.announced_to, 0, "private は announce しない");
     assert_eq!(svc.entry_count(), 1, "ローカル登録は行われる");
 }
@@ -470,7 +470,7 @@ fn ttl_excludes_from_search_but_keeps_entry()
     assert_eq!(a.svc.entry_count(), 1);
 
     // 同一質問で ask → slow TTL(1秒)を超過 → 検索除外 → miss。
-    let res = a.svc.ask(q);
+    let res = a.svc.ask(q).expect("MockAgentは失敗しない");
     assert!(!res.hit, "TTL 超過エントリは検索から除外される");
     // 物理削除されていない(元 entry_id は残存する = grow-only)。
     assert!(
@@ -505,7 +505,7 @@ fn within_ttl_entry_is_searchable()
         .ingest_envelope(&envelope_from_core(&core, a.signer.as_ref()), Some(&id))
         .unwrap();
 
-    let res = a.svc.ask(q);
+    let res = a.svc.ask(q).expect("MockAgentは失敗しない");
     assert!(res.hit, "TTL 内なら検索でヒットする");
     assert_eq!(res.entry_id, id);
 }
@@ -522,7 +522,7 @@ fn policy_swap_preserves_signature_core()
     let ca = new_ca(&dir);
     let nodes = build_company_network(&net, &dir, &["a"], &ca);
     let a = &nodes[0];
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     let valid = a.svc.handle_entry_request(&res.entry_id).unwrap();
 
     // cert 検証を AllowAll に差し替えたノード(Phase2 差替の予行)。
@@ -577,7 +577,7 @@ fn non_shareable_entry_is_not_served_or_digested()
     let a = &nodes[0];
 
     // フォールバック回答(生成文)= L2 非事実型で共有除外。
-    let res = a.svc.ask("量子コンピュータについて教えてください");
+    let res = a.svc.ask("量子コンピュータについて教えてください").expect("MockAgentは失敗しない");
     assert!(!res.shareable, "生成文は共有不可");
     assert_eq!(res.announced_to, 0, "非共有は announce しない");
     assert!(

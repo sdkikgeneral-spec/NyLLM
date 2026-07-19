@@ -56,6 +56,9 @@ mod tests
     // 実ファイルは src/tests/ にあるので ../../tests/ で辿る。
     #[path = "../../tests/common.rs"]
     mod common;
+    // Agent層(選択可能な推論先。設計 2026-07-18)のテスト。
+    #[path = "../../tests/test_agent.rs"]
+    mod test_agent;
     #[path = "../../tests/test_node.rs"]
     mod test_node;
     #[path = "../../tests/test_wire.rs"]

@@ -14,7 +14,7 @@
 // anti-entropy は配送層の有無で構造的に不能になる。コンストラクタは
 // Private + Some(delivery) の組を拒否する。
 
-use crate::agent::Agent;
+use crate::agent::{Agent, AgentError};
 use crate::cache::{IngestOutcome, IngestReport, SemanticCache, LOCAL_THRESHOLD};
 use crate::embedder::Embedder;
 use crate::entry::{CacheEntry, Tier};
@@ -282,7 +282,10 @@ impl NodeService
     // UI経路: 質問(検索 → ミス時 Agent推論 → judge → 登録 → announce)
     // ------------------------------------------------------------------
 
-    pub fn ask(&self, question: &str) -> AskResult
+    // 推論失敗(Err)時はエントリを一切登録しない: 失敗やゴミ回答を
+    // キャッシュ・共有網に入れないことがヒット経路より優先(設計 2026-07-18 §4。
+    // ヒット時は Agent を呼ばないため常に Ok)。
+    pub fn ask(&self, question: &str) -> Result<AskResult, AgentError>
     {
         let now = Utc::now();
         // 検索(失効フィルタ+TTL除外フックを差し込む。§8-4/§7)
@@ -292,7 +295,7 @@ impl NodeService
             let r = cache.lookup_filtered(question, &|e| self.is_searchable(e, now));
             if let Some(e) = r.entry
             {
-                return AskResult
+                return Ok(AskResult
                 {
                     hit: true,
                     answer: render_cached_answer(e),
@@ -301,13 +304,14 @@ impl NodeService
                     shareable: e.state.shareable,
                     tier: e.state.tier_operative,
                     announced_to: 0,
-                };
+                });
             }
             best_sim = r.similarity;
         } // ← ロック解放(Agent推論・announce をロック外で行う)
 
-        // ミス: Agent 推論 + 判定パイプライン(Architecture §7 全段)
-        let answer = self.agent.ask(question);
+        // ミス: Agent 推論 + 判定パイプライン(Architecture §7 全段)。
+        // 失敗はここで早期リターンし、以降の judge/登録/announce を行わない。
+        let answer = self.agent.ask(question)?;
         let report = judge_entry(question, &answer, self.agent.as_ref());
 
         // 登録(ロック区間は登録のみに絞る。InMemoryTransport の announce が
@@ -342,7 +346,7 @@ impl NodeService
             0
         };
 
-        AskResult
+        Ok(AskResult
         {
             hit: false,
             answer,
@@ -351,7 +355,7 @@ impl NodeService
             shareable,
             tier,
             announced_to,
-        }
+        })
     }
 
     // 検索候補に含めるか(検索層のフック。cache::lookup_filtered へ渡す)。

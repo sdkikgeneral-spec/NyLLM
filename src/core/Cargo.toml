@@ -36,6 +36,7 @@ ed25519-dalek = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
+ureq = { workspace = true, optional = true }
 
 # テスト専用依存。nyllm-registry はレジストリ統合テスト
 # (src/tests/test_registry_integration.rs)が「本物のレジストリハンドラ」を
@@ -56,3 +57,7 @@ http = ["dep:tokio", "dep:axum", "dep:reqwest"]
 ed25519 = ["dep:ed25519-dalek"]
 # 実Embedding経路の拡張点(骨格のみ、未配線)。既定はMockEmbedder。
 onnx = []
+# 選択可能な推論先(設計 2026-07-18 §6): OllamaAgent(ureq によるHTTP推論)。
+# 既定は MockAgent(依存追加なし)。純関数部(agent/ollama_agent.rs)は feature なしでも
+# コンパイル・テストされ、HTTP I/O のみこの feature 配下。
+ollama = ["dep:ureq"]

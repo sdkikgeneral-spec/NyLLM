@@ -39,13 +39,13 @@ fn revoked_author_entry_is_retroactively_excluded_and_restorable()
     let a = &nodes[0];
 
     // A が首都エントリを登録(共有可=shareable=true)。
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     assert!(!res.hit, "初回はミス(新規登録)");
     assert!(res.shareable, "首都エントリは共有可");
     let eid = res.entry_id.clone();
 
     // 失効前のベースライン: 検索ヒット・供出可・Digest掲載。
-    assert!(a.svc.ask(SHAREABLE_QUESTION).hit, "(a前提) 失効前は検索でヒット");
+    assert!(a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない").hit, "(a前提) 失効前は検索でヒット");
     assert!(
         a.svc.handle_entry_request(&eid).is_some(),
         "(b前提) 失効前は Transfer 供出できる"
@@ -60,7 +60,7 @@ fn revoked_author_entry_is_retroactively_excluded_and_restorable()
 
     // (a) 検索からヒットしなくなる(is_searchable 経由)。
     assert!(
-        !a.svc.ask(SHAREABLE_QUESTION).hit,
+        !a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない").hit,
         "(a) 失効著者のエントリは検索でヒットしない"
     );
     // (b) handle_entry_request が None を返す。
@@ -92,7 +92,7 @@ fn revoked_author_entry_is_retroactively_excluded_and_restorable()
         a.svc.handle_digest_request().entries.iter().any(|i| i.entry_id == eid),
         "(e) 失効解除で Digest 掲載も復活する"
     );
-    assert!(a.svc.ask(SHAREABLE_QUESTION).hit, "(e) 失効解除で検索ヒットも復活する");
+    assert!(a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない").hit, "(e) 失効解除で検索ヒットも復活する");
 }
 
 // ------------------------------------------------------------------

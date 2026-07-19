@@ -26,7 +26,7 @@
 //                  初回供給時点のレジストリ compromise は検出できない。
 //                  policy.rs / registry_client.rs のコメント参照)。
 
-use nyllm_core::agent::create_agent;
+use nyllm_core::agent::{create_agent, AgentBackend, AgentConfig};
 use nyllm_core::daemon;
 use nyllm_core::embedder::create_embedder;
 use nyllm_core::node::{issue_node_cert, load_identity, Mode, NodeCert};
@@ -150,7 +150,18 @@ fn main()
 {
     let args = parse_args();
     let embedder = Arc::from(create_embedder());
-    let agent = Arc::from(create_agent());
+    // 推論先の選択(設計 2026-07-18 §5): NYLLM_AGENT_BACKEND=mock|ollama 等の
+    // 環境変数で解決する(不正値は mock フォールバック + 警告)。
+    let agent_config = AgentConfig::from_env();
+    match agent_config.backend
+    {
+        AgentBackend::Ollama => println!(
+            "[node] agent backend=ollama model={} endpoint={} timeout={}s",
+            agent_config.model, agent_config.endpoint, agent_config.timeout_secs
+        ),
+        AgentBackend::Mock => println!("[node] agent backend=mock"),
+    }
+    let agent = Arc::from(create_agent(&agent_config));
     let identity = load_identity(&args.key, args.mode).unwrap_or_else(|e|
     {
         eprintln!("鍵のロードに失敗: {e}");

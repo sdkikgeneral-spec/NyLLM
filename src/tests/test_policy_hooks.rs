@@ -96,7 +96,7 @@ fn rejecting_time_policy_drops_ingest()
     let ca = new_ca(&dir);
     let nodes = build_company_network(&net, &dir, &["a"], &ca);
     let a = &nodes[0];
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     let transfer = a.svc.handle_entry_request(&res.entry_id).expect("A は共有可を供出");
 
     // 受信ノード B: cert は正規(A と同じ cert 表)、時刻検証のみ拒否に差し替え。
@@ -187,15 +187,15 @@ fn revocation_policy_excludes_entry_from_search_without_deletion()
     .unwrap();
 
     // 登録 → 失効前は検索でヒットする。
-    let res = svc.ask(SHAREABLE_QUESTION);
+    let res = svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     assert!(!res.hit, "初回はミス(新規登録)");
     let eid = res.entry_id.clone();
-    assert!(svc.ask(SHAREABLE_QUESTION).hit, "失効前は検索でヒット");
+    assert!(svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない").hit, "失効前は検索でヒット");
 
     // エントリ単位失効 → 検索から除外される(is_searchable フックの実効性)。
     revocation.revoke(&eid);
     assert!(
-        !svc.ask(SHAREABLE_QUESTION).hit,
+        !svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない").hit,
         "失効エントリは検索でヒットしない(§8-4 フックが効く)"
     );
     // 物理削除はしない(grow-only 維持)。
@@ -206,7 +206,7 @@ fn revocation_policy_excludes_entry_from_search_without_deletion()
 
     // 失効解除で復活する = フィルタであって削除ではない。
     revocation.unrevoke(&eid);
-    assert!(svc.ask(SHAREABLE_QUESTION).hit, "失効解除で検索ヒットが復活する");
+    assert!(svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない").hit, "失効解除で検索ヒットが復活する");
 }
 
 // ------------------------------------------------------------------
@@ -231,7 +231,7 @@ fn revocation_policy_blocks_anti_entropy_pull()
     // 供出側 A(正規)に共有可エントリを1件用意する。
     let nodes = build_company_network(&net, &dir, &["a"], &ca);
     let a = &nodes[0];
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     let eid = res.entry_id.clone();
 
     // 受信側 B: revocation を差し替え、ピア表に A を静的設定する。

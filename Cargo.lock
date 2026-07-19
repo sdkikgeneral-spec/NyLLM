@@ -664,6 +664,7 @@ dependencies = [
  "sha2",
  "tokio",
  "unicode-normalization",
+ "ureq",
 ]
 
 [[package]]
@@ -1139,6 +1140,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
 dependencies = [
  "tinyvec",
+]
+
+[[package]]
+name = "ureq"
+version = "2.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
+dependencies = [
+ "base64",
+ "log",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "url",
 ]
 
 [[package]]

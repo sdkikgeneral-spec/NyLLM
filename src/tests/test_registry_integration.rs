@@ -240,7 +240,7 @@ fn registry_join_peers_ca_and_http_sync_smoke()
     );
 
     // ノード間同期(実HTTP): A の ask → announce → B が pull → ingest。
-    let res = a.svc.ask(SHAREABLE_QUESTION);
+    let res = a.svc.ask(SHAREABLE_QUESTION).expect("MockAgentは失敗しない");
     assert!(!res.hit, "初回はミス");
     assert!(res.shareable, "首都エントリは共有可");
     assert_eq!(res.announced_to, 1, "B へ announce 送達(202)");

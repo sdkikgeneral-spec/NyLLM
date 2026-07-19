@@ -1,8 +1,21 @@
 # 設計: 選択可能な推論先(Ollama対応)— `src/core/` Agent層
 
 - 日付: 2026-07-18
-- ステータス: 設計確定(実装未着手)
+- ステータス: 実装完了(2026-07-19。S3完了に伴う前提改訂あり — 下記「改訂注記(2026-07-19)」参照)
 - 関連: Architecture.md §7.3 / §5 / §10.1, 信頼性設計メモ §10, Roadmap S3, [poc/src/agent.rs](../../../poc/src/agent.rs)
+
+## 改訂注記(2026-07-19)
+
+本設計書は2026-07-18時点(「空の`src/core/`を建て始める最初の一歩としてAgent層を新設する」前提。§2/§3)で書かれたが、同日中にS3(Company Phase1)が背骨一式(`node.rs`/`transport.rs`/`wire.rs`/`sync.rs`/`registry_client.rs`/`daemon.rs`/`policy.rs`/`main.rs`)を`src/core/`へ移植したため、この前提は陳腐化した。実装は2026-07-19、**新設ではなく既存`src/core/agent.rs`の拡張**として完了した(`cargo test --workspace` 91 passed、default / `--features ed25519` の両ビルド緑、ライブOllama統合・デーモンE2Eを実機確認済み)。
+
+以下、前提差分と実装時の主な調整を記録する。**原文の各§は判断の経緯として書き換えずに残し**、本注記は「§Xはこう調整された」と指す形式にとどめる。
+
+- **前提差分**: S3完了により`src/core/`に背骨一式が既に存在する。Agent trait自体も既に存在し(`Send + Sync`上限はS3でデーモンが`Arc<dyn Agent>`をスレッド間共有するため既に付与済み)、本実装は「新設」でなく既存`src/core/agent.rs`の拡張である(§1「空の`src/core/`を建て始める最初の一歩として適切な単位」という位置づけは前提から外れた)。
+- **§3(モジュール構成)調整**: `heuristic.rs`は作成していない。`volatility.rs`が既にcoreにあるため`find_context_term`等のfind_*系ヘルパーを直接流用し、Mock/Ollama双方のフォールバックが共有する`heuristic_self_declare()`を`agent.rs`に1本化した(§3で「暫定の継ぎ目」として予告されていた統合を、最初から必要なく設計し直した形)。モジュール構成は§3記載のサブディレクトリ一式ではなく、フラット`agent.rs` + サブディレクトリ`agent/ollama_agent.rs`(既存のsigner/embedderの前例に一致させたもの)。`build_chat_request`/`extract_answer`/`parse_self_declaration`/`declare_or_fallback`といった純関数は feature なしでもコンパイル・テストされ、HTTP I/Oのみ`#[cfg(feature = "ollama")]`下に閉じる(§6「I/Oと分離」の狙いは維持)。
+- **§4(Agent trait改訂)調整**: 呼び出し側として`NodeService::ask`(`src/core/sync.rs`)を`Result<AskResult, AgentError>`化した。Agent失敗時はjudge/登録/announceを行わない(ゴミエントリを登録しない)。daemonの`/v1/ask`はTimeout→504(Gateway Timeout)、それ以外(Unreachable/Http/Parse)→502(Bad Gateway)にマップする。
+- **§5(設定機構)調整**: 既定モデル名を`gemma2`から`gemma3`に変更した(§11「実在・入手性を実装時に確認」の帰結。gemma3はOllama libraryに実在し270M〜27Bの各サイズが公開されており、後継として入手性・日本語性能とも上位互換)。環境変数解決は「`from_env()`という薄い入口 + 注入可能なキー→値ソースから解決する`resolve()`本体」に分離した(テストがプロセス環境そのものを変異させずに済むようにするため)。
+- **§6(OllamaAgent)調整**: `ureq` 2系を`default-features = false, features = ["json"]`で採用した(ローカルHTTP限定のためTLS/gzipは不要。legal-license-guardによる確認済み: 本体・推移的依存ともMIT/Apache-2.0系であり、AGPL-3.0の現状および将来のApache-2.0移行のいずれとも両立する)。`OllamaAgent::name()`は`ollama:<モデル名>`を返し、provenanceからモデル単位まで追跡可能にした(Architecture §11 R4)。
+- **§8(テスト)調整**: テストは仕様記載の`src/core/tests/test_agent.rs`ではなく`src/tests/test_agent.rs`に置き、`src/core/lib.rs`の既存`#[cfg(test)] mod tests` + `#[path]`配線(poc/src/main.rsの既存方針を踏襲したもの)にAgent層のテストとして合流させた。
 
 ## 1. 背景と狙い
 
@@ -183,6 +196,21 @@ JSON は既存の `serde` / `serde_json` を利用。
 ## 11. 未解決 / 継ぎ目(実装時に留意)
 
 - `heuristic.rs` は `volatility.rs` の core 移植時に統合(重複削除)。
+  **→ 解消済み(2026-07-19)**: `volatility.rs` が既に core にあったため `heuristic.rs` 自体を
+  作らず、`heuristic_self_declare()` として最初から `agent.rs` に1本化した(上記「改訂注記」§3調整参照)。
 - 判定パイプライン(finalize_volatility 等)本体はまだ core に無い。self_declare の
   出力を消費する側の不変条件テストは、パイプライン移植時に本格化する。
 - 既定モデル名(`gemma2`)は実在・入手性を実装時に確認(なければ広く入手可能なものに調整)。
+  **→ 対応済み(2026-07-19)**: `gemma3` へ変更(上記「改訂注記」§5調整参照)。
+
+**追記(2026-07-19、実装完了時)**:
+
+- ローカル推論モデル(`gemma3` / `glm4` 等)自体の利用規約・モデルライセンス(出力の
+  再配布・共有条件)は、本設計書のスコープ外(本設計はOllama経由でエントリを**生成**する
+  経路のみを扱い、生成されたエントリをCompany層で他ノードと共有する可否・条件は
+  Architecture §11 の法的マトリクスの管轄)。Ollama経由エントリのCompany層共有(S3の
+  多ノード共有パイプラインへの合流)を本格化する前に、Architecture §11「Agent規約
+  マトリクス」(R5)へ「ローカル推論モデル」行として追加し確認が必要(現行R5は「商用API
+  出力はCompany/Privateに留める」という主旨のみで、Ollama等ローカル推論モデルの規約は
+  未整理)。**法的助言ではない。Public層公開前に専門弁護士レビュー必須**(Architecture §11
+  既存の免責と同一。本追記はそれを薄めるものではない)。

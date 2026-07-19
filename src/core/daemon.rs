@@ -20,6 +20,7 @@
 // NodeService は同期実装(reqwest::blocking を含む)のため、tokio ランタイムを
 // ブロックしないよう必ず spawn_blocking で包む。
 
+use crate::agent::AgentError;
 use crate::node::Mode;
 use crate::sync::NodeService;
 use crate::wire::{WireEnvelope, WireMessage, WIRE_VERSION};
@@ -60,6 +61,14 @@ async fn ask_handler(
     let result = tokio::task::spawn_blocking(move || svc.ask(&req.question))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("ask実行失敗: {e}")))?;
+    // 推論先(Agent)の失敗はゲートウェイ系エラーにマップする(設計 2026-07-18 §4:
+    // 自ノードの障害ではなく上流=推論先の障害。エントリは登録されていない)。
+    //   Timeout → 504 / それ以外(到達不能・非2xx・パース失敗)→ 502
+    let result = result.map_err(|e| match e
+    {
+        AgentError::Timeout => (StatusCode::GATEWAY_TIMEOUT, format!("推論先エラー: {e}")),
+        _ => (StatusCode::BAD_GATEWAY, format!("推論先エラー: {e}")),
+    })?;
     Ok(Json(json!(result)))
 }
 

@@ -56,6 +56,16 @@ pub fn judge_entry(question: &str, answer: &str, agent: &dyn Agent) -> PipelineR
     let l0_gate = share_gate(question, &l0_volatility);
 
     // --- L2: Agent自己申告(§7.3。決定でなく一票) ---
+    //
+    // 脅威レビュー 2026-07-19 M-1: Mock 経路の申告は決定的な L0 語彙ルール由来
+    // だが、実LLM経路(Ollama B経路)ではこの申告はプロンプトインジェクションで
+    // 細工可能な「信頼できない入力」になる。細工入力で全許可申告
+    // {context_independent:true, factual:true, volatility:"permanent"} を
+    // 返させれば L2 ブロックは素通りするため、L2 を多層防御の実効バリアとして
+    // 数えてはならない。共有阻止の独立バリアはあくまで LLM 非依存の
+    // L0(語彙)/案4(トリプル分解 allowlist)/確定 volatility の3段であり、
+    // 全許可申告でもこれらを通過しない限り共有可にならないことは
+    // tests/test_agent.rs の M-1 系テストで固定している。
     let declaration = agent.self_declare(question, answer);
 
     // --- 案4: 回答のトリプル分解(§7.3, §10.1) ---
