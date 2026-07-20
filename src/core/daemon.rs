@@ -4,7 +4,10 @@
 // UI向け(同一ノード内。Blazor が叩く):
 //   POST /v1/ask {question}        → AskResult(検索→ミス時推論→judge→登録→announce)
 //   GET  /v1/entries/{entry_id}    → EntryDetail(facts/provenance/volatility)
-//   GET  /v1/status                → StatusReport(mode/ピア数/エントリ数/embedder)
+//   GET  /v1/status                → StatusReport(mode/ピア数/エントリ数/embedder/共有状態)
+//   POST /v1/sharing {enabled}     → 共有キルスイッチの実行中トグル(共有オフ+法的姿勢
+//                                     再定義スペック §3.2。UI消費用API契約。private でも
+//                                     マウントするが常に sharing_active=false のまま無害)
 //
 // ノード間(core←→core、nyllm-wire/v1):
 //   POST /wire/announce            → 202(未知なら非同期プル起動)
@@ -40,6 +43,13 @@ pub struct AskRequest
     pub question: String,
 }
 
+// POST /v1/sharing の入力(共有キルスイッチ§3.2)。
+#[derive(Deserialize)]
+pub struct SharingRequest
+{
+    pub enabled: bool,
+}
+
 // ------------------------------------------------------------------
 // UI向けルータ
 // ------------------------------------------------------------------
@@ -50,6 +60,7 @@ pub fn ui_router(svc: Svc) -> Router
         .route("/v1/ask", post(ask_handler))
         .route("/v1/entries/{entry_id}", get(entry_detail_handler))
         .route("/v1/status", get(status_handler))
+        .route("/v1/sharing", post(sharing_handler))
         .with_state(svc)
 }
 
@@ -93,6 +104,25 @@ async fn status_handler(State(svc): State<Svc>) -> Result<Json<Value>, StatusCod
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(status)))
+}
+
+// POST /v1/sharing(共有キルスイッチ§3.2): 実行中トグル(再起動不要)。
+// private でもマウントされるが、delivery=None のため sharing_active は常に false
+// (§6の構造的不在は置き換えない。無害)。
+async fn sharing_handler(
+    State(svc): State<Svc>,
+    Json(req): Json<SharingRequest>,
+) -> Result<Json<Value>, StatusCode>
+{
+    let (sharing_enabled, sharing_active) = tokio::task::spawn_blocking(move ||
+    {
+        svc.set_sharing_enabled(req.enabled);
+        let status = svc.status();
+        (status.sharing_enabled, status.sharing_active)
+    })
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "sharing_enabled": sharing_enabled, "sharing_active": sharing_active })))
 }
 
 // ------------------------------------------------------------------

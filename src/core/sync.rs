@@ -27,6 +27,7 @@ use crate::wire::{digest_hash, Announce, Digest, DigestItem, Transfer};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 // ノード設定。TTL は §7「陳腐化」の検索除外(物理削除しない)に使う。
@@ -114,6 +115,11 @@ pub struct StatusReport
     pub entries: usize,
     pub embedder: String,
     pub signer: String,
+    // 共有キルスイッチ(共有オフ+法的姿勢再定義スペック §2.3)。
+    // sharing_enabled: トグルの現在値(private でも保持・報告する)。
+    // sharing_active : 実際に送出可能か = delivery あり AND enabled。
+    pub sharing_enabled: bool,
+    pub sharing_active: bool,
 }
 
 // GET /v1/entries/{entry_id} の内容(§9: facts/provenance/volatility)。
@@ -152,6 +158,11 @@ pub struct NodeService
     policies: Policies,
     delivery: Option<Delivery>,
     cache: Mutex<SemanticCache>,
+    // 共有キルスイッチ(共有オフ+法的姿勢再定義スペック §2.1。S6強化)。
+    // true=共有有効/false=即停止。既定 true(非破壊)。private モードでは
+    // delivery=None のため意味を持たない(どちらでも送出経路は構造的に
+    // 不在)が、状態としては保持・報告する。
+    sharing_enabled: AtomicBool,
 }
 
 impl NodeService
@@ -198,6 +209,8 @@ impl NodeService
             policies,
             delivery,
             cache,
+            // 既定 true(非破壊)。既存 new シグネチャは変えず内部初期化のみ。
+            sharing_enabled: AtomicBool::new(true),
         };
         // S4 層1: ロード済み全バンドルの trust をローカル再導出する(起動時初期化)。
         // state.json に残る過去の算出値も、現在ローカルに揃っている版集合から
@@ -226,6 +239,29 @@ impl NodeService
     pub fn has_delivery(&self) -> bool
     {
         self.delivery.is_some()
+    }
+
+    // ------------------------------------------------------------------
+    // 共有キルスイッチ(共有オフ+法的姿勢再定義スペック §2.1〜§2.2)
+    // ------------------------------------------------------------------
+
+    // 実行中トグル(再起動不要)。CLI --sharing / daemon の POST /v1/sharing から呼ぶ。
+    pub fn set_sharing_enabled(&self, enabled: bool)
+    {
+        self.sharing_enabled.store(enabled, Ordering::SeqCst);
+        println!("[node] sharing={}", if enabled { "on" } else { "off" });
+    }
+
+    pub fn is_sharing_enabled(&self) -> bool
+    {
+        self.sharing_enabled.load(Ordering::SeqCst)
+    }
+
+    // 「送出してよいか」を1箇所に集約する判定(送出系5経路が共通で使う)。
+    // delivery 不在(private。§6の構造的不在)OR 共有オフ の両方を1点で表現する。
+    fn sharing_active(&self) -> bool
+    {
+        self.delivery.is_some() && self.is_sharing_enabled()
     }
 
     pub fn entry_count(&self) -> usize
@@ -259,6 +295,8 @@ impl NodeService
             entries: self.entry_count(),
             embedder: self.embedder.name().to_string(),
             signer: self.identity.signer.name().to_string(),
+            sharing_enabled: self.is_sharing_enabled(),
+            sharing_active: self.sharing_active(),
         }
     }
 
@@ -416,11 +454,12 @@ impl NodeService
 
     fn broadcast_announce(&self, entry_id: &str, question_key: &str, created: &str) -> usize
     {
-        let Some(d) = &self.delivery
-        else
+        if !self.sharing_active()
         {
-            return 0; // private: 配送層が構造的に不在(§6)
-        };
+            return 0; // private(配送層不在)または共有オフ(§6/共有キルスイッチ§2.2)
+        }
+        // sharing_active() が Some を保証しているので unwrap は自明に成立する。
+        let d = self.delivery.as_ref().unwrap();
         let ann = Announce
         {
             entry_id: entry_id.to_string(),
@@ -452,11 +491,13 @@ impl NodeService
     // §3手順1〜10 の受信側検証を経て冪等マージする。
     pub fn handle_announce(&self, ann: &Announce) -> AnnounceOutcome
     {
-        let Some(d) = &self.delivery
-        else
+        if !self.sharing_active()
         {
+            // private(配送層不在)または共有オフ(共有キルスイッチ§2.2)。
+            // 既存の NoDelivery を流用する(受信プルを起動しない点は同じ挙動)。
             return AnnounceOutcome::NoDelivery;
-        };
+        }
+        let d = self.delivery.as_ref().unwrap();
         // 既知なら何もしない(冪等)
         if self.cache.lock().unwrap().contains(&ann.entry_id)
         {
@@ -540,7 +581,11 @@ impl NodeService
     // (§3手順9注記/§7 過失毒対処)。
     pub fn handle_entry_request(&self, entry_id: &str) -> Option<Transfer>
     {
-        self.delivery.as_ref()?; // 配送層なし(private)は供出しない(§6)
+        // 配送層なし(private・§6)または共有オフ(共有キルスイッチ§2.2)は供出しない。
+        if !self.sharing_active()
+        {
+            return None;
+        }
         let cache = self.cache.lock().unwrap();
         let e = cache.get(entry_id)?;
         if !e.state.shareable
@@ -551,6 +596,13 @@ impl NodeService
         {
             return None; // 失効著者のエントリは供出しない(H-1 遡及除外)
         }
+        // 【S5 §3(d)】エントリ単位失効(tombstone)も供出しない。
+        // H-1(ノード単位)と同じ遡及除外パターンをエントリ単位へ拡張。
+        // 既定 NoRevocationPolicy は常に false = Phase1 非破壊。
+        if self.policies.revocation.is_revoked(entry_id)
+        {
+            return None;
+        }
         cache.envelope_for(entry_id).map(|envelope| Transfer { envelope })
     }
 
@@ -559,16 +611,21 @@ impl NodeService
     // 再伝播させない)。
     pub fn handle_digest_request(&self) -> Digest
     {
-        if self.delivery.is_none()
+        if !self.sharing_active()
         {
-            // private: 配送層なし → 空のDigest(wireルート自体もマウントされない)
+            // private(配送層なし。wireルート自体もマウントされない)または
+            // 共有オフ(共有キルスイッチ§2.2) → 空のDigest。
             return Digest { digest_hash: digest_hash(&[]), entries: Vec::new() };
         }
         let cache = self.cache.lock().unwrap();
         let mut items: Vec<DigestItem> = cache
             .entries()
             .iter()
-            .filter(|e| e.state.shareable && !self.policies.cert.is_author_revoked(&e.author_pub))
+            .filter(|e| e.state.shareable
+                && !self.policies.cert.is_author_revoked(&e.author_pub)
+                // 【S5 §3(d)】tombstone 済み entry_id を Digest 列挙から除外。
+                // 既定 NoRevocationPolicy は常に false = Phase1 非破壊。
+                && !self.policies.revocation.is_revoked(&e.entry_id))
             .map(|e| DigestItem
             {
                 entry_id: e.entry_id.clone(),
@@ -589,11 +646,11 @@ impl NodeService
     pub fn run_anti_entropy_once(&self) -> SyncReport
     {
         let mut rep = SyncReport::default();
-        let Some(d) = &self.delivery
-        else
+        if !self.sharing_active()
         {
-            return rep; // private: 同期経路なし(§6)
-        };
+            return rep; // private(同期経路なし・§6)または共有オフ(共有キルスイッチ§2.2)
+        }
+        let d = self.delivery.as_ref().unwrap();
         for peer in d.discovery.peers()
         {
             if peer.node_id == self.identity.node_id

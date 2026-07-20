@@ -52,6 +52,11 @@ struct Args
     dev_ca_key: Option<PathBuf>,
     ca_pub: Option<String>, // M-1: CA公開鍵の明示ピン留め(hex)
     sync_interval_secs: u64,
+    // 共有キルスイッチ(共有オフ+法的姿勢再定義スペック §3.1)。
+    // 既定 true(on)。company 起動時のみ意味を持つ(private は元々送出経路が構造的に不在)。
+    sharing_enabled: bool,
+    // --sharing が明示指定されたか(private モードで無視する際の警告判定に使う)。
+    sharing_specified: bool,
 }
 
 fn usage_exit(msg: &str) -> !
@@ -60,7 +65,7 @@ fn usage_exit(msg: &str) -> !
     eprintln!(
         "使い方: nyllm-node --mode company|private [--store-dir D] [--key K] \
          [--listen ADDR] [--url URL] [--registry URL] [--cert-file F | --dev-ca-key F] \
-         [--ca-pub HEX] [--sync-interval-secs N]"
+         [--ca-pub HEX] [--sync-interval-secs N] [--sharing on|off]"
     );
     exit(2);
 }
@@ -77,6 +82,8 @@ fn parse_args() -> Args
     let mut dev_ca_key: Option<PathBuf> = None;
     let mut ca_pub: Option<String> = None;
     let mut sync_interval_secs = 30u64;
+    let mut sharing_enabled = true; // 既定 on(共有キルスイッチ§3.1)
+    let mut sharing_specified = false;
 
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let mut i = 0;
@@ -112,6 +119,17 @@ fn parse_args() -> Args
                     .parse()
                     .unwrap_or_else(|_| usage_exit("--sync-interval-secs は数値"));
             }
+            "--sharing" =>
+            {
+                let v = take_value(&mut i);
+                sharing_enabled = match v.as_str()
+                {
+                    "on" => true,
+                    "off" => false,
+                    other => usage_exit(&format!("--sharing は on|off: {other}")),
+                };
+                sharing_specified = true;
+            }
             other => usage_exit(&format!("不明な引数: {other}")),
         }
         i += 1;
@@ -138,6 +156,8 @@ fn parse_args() -> Args
         dev_ca_key,
         ca_pub,
         sync_interval_secs,
+        sharing_enabled,
+        sharing_specified,
     }
 }
 
@@ -181,6 +201,15 @@ fn main()
         // --------------------------------------------------------------
         Mode::Private =>
         {
+            // 共有キルスイッチ(§3.1): private では元々送出経路が構造的に不在
+            // なので --sharing は無視する(指定時は警告ログのみ)。
+            if args.sharing_specified
+            {
+                println!(
+                    "[node] 警告: --sharing は private モードでは無視されます\
+                     (配送層が構造的に不在のため既定で共有経路なし)"
+                );
+            }
             let policies = Policies::phase1(Arc::new(RejectAllCertPolicy));
             let config = NodeConfig::new(Mode::Private, args.store_dir.clone());
             Arc::new(
@@ -284,6 +313,12 @@ fn main()
                         exit(1);
                     }),
             );
+            // 共有キルスイッチ(§3.1): --sharing off なら「共有オフで安全に立ち上げる」
+            // (daemon::serve 前にトグルする。既定 on の場合は何もしない=非破壊)。
+            if !args.sharing_enabled
+            {
+                svc.set_sharing_enabled(false);
+            }
 
             // レジストリ参加 + 定期リフレッシュ(ピア/CA・CRL)+ anti-entropy
             if let Some(reg_url) = &args.registry
@@ -351,6 +386,10 @@ fn main()
             svc
         }
     };
+
+    // 共有キルスイッチ(§3.1): 起動ログに現在の共有状態を明示する
+    // (svc.is_sharing_enabled() は company/private いずれの実際の値も反映する)。
+    println!("[node] sharing={}", if svc.is_sharing_enabled() { "on" } else { "off" });
 
     // HTTPサーバのみ tokio ランタイム上で実行する
     let rt = tokio::runtime::Runtime::new().unwrap_or_else(|e|

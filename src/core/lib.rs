@@ -90,8 +90,14 @@ mod tests
     // 共有由来エントリへの SHARED_THRESHOLD 配線(Architecture §5.1/§7 既知の穴②)。
     #[path = "../../tests/test_shared_threshold.rs"]
     mod test_shared_threshold;
+    // 共有キルスイッチ(共有オフ+法的姿勢再定義スペック §2〜§4)。
+    #[path = "../../tests/test_sharing_killswitch.rs"]
+    mod test_sharing_killswitch;
     #[path = "../../tests/bench_lookup.rs"]
     mod bench_lookup;
+    // S5 §3(d) ソース側 revocation フィルタ(Digest 列挙経路)のスケール計測。
+    #[path = "../../tests/bench_source_side.rs"]
+    mod bench_source_side;
     #[cfg(feature = "http")]
     #[path = "../../tests/test_daemon_http.rs"]
     mod test_daemon_http;
