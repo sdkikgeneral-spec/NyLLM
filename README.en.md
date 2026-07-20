@@ -1,8 +1,8 @@
-# NyLLM — Distributed Semantic Cache
+# NyLLM — Distributed Semantic Cache, and a Trust Layer for Shared Knowledge
 
 **English** | [日本語](./README.md)
 
-> **Don't make the AI think every time. First, search for the answer humanity already gave.**
+> **An answer, once given, is never computed twice — and never trusted until it is verified.**
 
 The same questions get thrown at LLMs all over the world, and every time a GPU re-runs inference to answer them. This project cuts that waste with a simple shape: **semantic-search a distributed cache first, and only run inference on a miss.** The main battleground is first **within an organization (the Company layer)** — internal knowledge sharing and reducing inference inside an org — where the reliability design is established first. Sharing across users at human scale (the Public layer) is a conditional, later phase, gated on a transition to be reached only once specific conditions are met.
 
@@ -40,7 +40,7 @@ Proposed:     question → semantic search → return instantly on Hit / infer a
 
 ## What's new
 
-Semantic caching itself is existing technology (GPTCache, Redis Semantic Cache). However:
+Semantic caching itself is existing technology (GPTCache, Redis LangCache). **Even sharing already exists** — but at the token level, and at the cost of a side channel that leaks other users' prompts through response-time differences (Stanford, 2025). The empty space is the three-way combination: sharing *semantic answers*, *across users and organizations*, *with a trust layer that withstands poisoning*. In 2026, poisoning of semantic caches was demonstrated as a real attack, and existing defenses were shown unable to fully stop it (NDSS 2026). In other words, the trust layer this project puts at its core (3-layer reputation, independent verification, the share gate) is not a nice-to-have — it is the precondition for sharing to work at all.
 
 | | GPTCache | MeanCache | **This project** |
 |---|---|---|---|
@@ -49,7 +49,7 @@ Semantic caching itself is existing technology (GPTCache, Redis Semantic Cache).
 | Privacy | — | Protected via federated learning | **Physical network separation** (Public/Company/Private) |
 | Trust of shared cache | Out of scope | Out of scope (since nothing is shared) | **The core problem. Designed with 3-layer reputation + independent verification** |
 
-In other words, the empty space is "a semantic cache that is shared" itself. But if the sharing scope is unconditionally widened to cross-user, human scale, the trust problems that inevitably arise there (cache poisoning, Sybil attacks, freshness, forgery, legal risk, incentive design) are maximized. Almost all of this difficulty stems from participants being able to join "permissionlessly" and being an "anonymous many." **The organizational (Company) layer removes both of those conditions**, giving a realistic scope where value and shareability genuinely intersect and where these difficulties are structurally far less likely to arise. This project aims to make the loop work first within the Company layer, then — building on the reliability design established there (3-layer reputation, independent verification, the share gate) — conditionally extend to the Public layer (human-scale sharing) as Phase2, once the transition gate is met.
+In other words, the empty space is "a semantic cache that is shared" itself. But if the sharing scope is unconditionally widened to cross-user, human scale, the trust problems that inevitably arise there (cache poisoning, Sybil attacks, freshness, forgery, legal risk, incentive design) are maximized. This concern is not hypothetical: poisoning of semantic caches is a demonstrated threat, and existing defenses have been shown unable to fully stop it (NDSS 2026). Token-level cross-user caching does exist commercially, but it has been shown to carry the cost of a side channel — other users' prompts can be inferred from response-time differences (Stanford, ICML 2025) — which is also part of the evidence behind this project's physical network separation. Almost all of this difficulty stems from participants being able to join "permissionlessly" and being an "anonymous many." **The organizational (Company) layer removes both of those conditions**, giving a realistic scope where value and shareability genuinely intersect and where these difficulties are structurally far less likely to arise. This project aims to make the loop work first within the Company layer, then — building on the reliability design established there (3-layer reputation, independent verification, the share gate) — conditionally extend to the Public layer (human-scale sharing) as Phase2, once the transition gate is met.
 
 ## How it works
 
