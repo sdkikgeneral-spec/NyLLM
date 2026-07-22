@@ -29,7 +29,7 @@
 | S3 P2P化 | Company Phase1では"社内版"に縮約(多ノード共有はやるがwitness署名/アンカーは共通時計で代替)。フルP2P(DHT・witness循環対策込み)はPublic Phase2で再拡張。具体設計は [S3_Company_Phase1_社内多ノード共有設計.md](./S3_Company_Phase1_社内多ノード共有設計.md) を参照 |
 | S4 評判・独立検証 | 3層評判・スラッシングの大半はPhase2繰り延べ。層1(トリプル一致率によるエントリ内在信頼度)相当のみPhase1で先行しうる(具体設計は [S4_Company_Phase1_層1内在信頼度先行設計.md](./S4_Company_Phase1_層1内在信頼度先行設計.md) を参照。層1は2026-07-19に先行実装完了 → §2 S4節)。ゲート「毒注入テストに耐える」を縮約せず満たすために必要な層2(局所EigenTrust)・層3(消費側抜き打ち再推論)の先行設計は [S4_Public_Phase2_層2層3評判機構先行設計.md](./S4_Public_Phase2_層2層3評判機構先行設計.md) を参照(骨子+論点構造化。実装未着手・ゲート不変) |
 | S5 法的機構 | regurgitationフィルタ・revocationフラッディングのフル実装はPhase2繰り延べ(社内配布のみのCompany Phase1では法的圧力が相対的に低いため)。R2/R3/R4 3本柱の先行設計ノート(骨子+論点構造化。実装未着手・ゲート不変)を [S5_Public_Phase2_法的機構先行設計.md](./S5_Public_Phase2_法的機構先行設計.md) として追加済み |
-| S6 モード分離+UI | Company/Private起動分離はPhase1で着手可。Public起動分離の本格運用はPhase2 |
+| S6 モード分離+UI | Company/Private起動分離はPhase1で着手可。Public起動分離の本格運用はPhase2。共有キルスイッチ(CLI `--sharing`+実行中`POST /v1/sharing`、送出5経路を再起動不要で即オフ)をS3実装の延長として2026-07-20に横断実装済み(ゲート「誤操作でPrivateが漏れない」の趣旨を強める方向・ステータス「一部着手」は不変 → §2 S6節) |
 | S7 Public限定公開 | 定義上Phase2専属(移行ゲート通過後) |
 
 ---
